@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ChangeListManager">
+    <list default="true" id="4b87cd14-81eb-497a-bf0a-e001509e79f1" name="Default Changelist" comment="" />
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="GOROOT" path="/usr/local/Cellar/go/1.15.2/libexec" />
+  <component name="ProjectId" id="1iVt9iIeEJyv58qD8osY03Q2Rmp" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent">
+    <property name="RunOnceActivity.OpenProjectViewOnStart" value="true" />
+    <property name="WebServerToolWindowFactoryState" value="false" />
+    <property name="go.import.settings.migrated" value="true" />
+    <property name="go.tried.to.enable.integration.vgo.integrator" value="true" />
+    <property name="last_opened_file_path" value="$USER_HOME$" />
+  </component>
+  <component name="RunManager">
+    <configuration name="go build main.go" type="GoApplicationRunConfiguration" factoryName="Go Application" temporary="true" nameIsGenerated="true">
+      <module name="Intercube CLI" />
+      <working_directory value="$PROJECT_DIR$" />
+      <kind value="FILE" />
+      <filePath value="$PROJECT_DIR$/main.go" />
+      <package value="intercube" />
+      <directory value="$PROJECT_DIR$" />
+      <method v="2" />
+    </configuration>
+    <recent_temporary>
+      <list>
+        <item itemvalue="Go Build.go build main.go" />
+      </list>
+    </recent_temporary>
+  </component>
+  <component name="SpellCheckerSettings" RuntimeDictionaries="0" Folders="0" CustomDictionaries="0" DefaultDictionary="application-level" UseSingleDictionary="true" transferred="true" />
+  <component name="TypeScriptGeneratedFilesManager">
+    <option name="version" value="3" />
+  </component>
+  <component name="VgoProject">
+    <integration-enabled>true</integration-enabled>
+  </component>
+  <component name="WindowStateProjectService">
+    <state x="760" y="406" key="#Go_Modules" timestamp="1602005674400">
+      <screen x="0" y="23" width="1920" height="1086" />
+    </state>
+    <state x="760" y="406" key="#Go_Modules/0.23.1920.1086@0.23.1920.1086" timestamp="1602005674400" />
+    <state width="1878" height="300" key="GridCell.Tab.0.bottom" timestamp="1602005709753">
+      <screen x="0" y="23" width="1920" height="1086" />
+    </state>
+    <state width="1878" height="300" key="GridCell.Tab.0.bottom/0.23.1920.1086@0.23.1920.1086" timestamp="1602005709753" />
+    <state width="1878" height="300" key="GridCell.Tab.0.center" timestamp="1602005709752">
+      <screen x="0" y="23" width="1920" height="1086" />
+    </state>
+    <state width="1878" height="300" key="GridCell.Tab.0.center/0.23.1920.1086@0.23.1920.1086" timestamp="1602005709752" />
+    <state width="1878" height="300" key="GridCell.Tab.0.left" timestamp="1602005709751">
+      <screen x="0" y="23" width="1920" height="1086" />
+    </state>
+    <state width="1878" height="300" key="GridCell.Tab.0.left/0.23.1920.1086@0.23.1920.1086" timestamp="1602005709751" />
+    <state width="1878" height="300" key="GridCell.Tab.0.right" timestamp="1602005709752">
+      <screen x="0" y="23" width="1920" height="1086" />
+    </state>
+    <state width="1878" height="300" key="GridCell.Tab.0.right/0.23.1920.1086@0.23.1920.1086" timestamp="1602005709752" />
+    <state x="625" y="265" key="search.everywhere.popup" timestamp="1602005046186">
+      <screen x="0" y="23" width="1920" height="1086" />
+    </state>
+    <state x="625" y="265" key="search.everywhere.popup/0.23.1920.1086@0.23.1920.1086" timestamp="1602005046186" />
+  </component>
+</project>
