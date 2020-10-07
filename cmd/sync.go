@@ -17,33 +17,48 @@ package cmd
 
 import (
 	"errors"
-	"fmt"
+	"github.com/spf13/viper"
 
 	"github.com/spf13/cobra"
 )
+import "github.com/asaskevich/govalidator"
 
 var syncType string
+var fromServer string
+var filesPath string
 
-// syncCmd represents the sync command
 var syncCmd = &cobra.Command{
-	Use:   "sync",
-	Short: "A brief description of your command",
-	Long: `A longer description that spans multiple lines and likely contains examples
-and usage of using your command. For example:
-
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
+	Use:   "sync [files|database] [destination]",
+	Short: "Syncs files or database from one of your servers to another",
+	Long:  ``,
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Printf("sync called with %v\n", args[0])
+		sync()
 	},
 	PreRunE: func(cmd *cobra.Command, args []string) error {
 		if len(args) < 1 {
 			return errors.New("The type argument is required")
 		} else {
+			syncType = args[0]
+			if len(args) > 1 {
+				fromServer = args[1]
+			} else {
+				fromServer = viper.GetStringMapString("file_syncing")["from_server"]
+			}
+
+			if len(args) > 2 {
+				filesPath = args[2]
+			} else {
+				filesPath = viper.GetStringMapString("file_syncing")["path"]
+			}
+
 			if syncType != "database" && syncType != "files" {
 				return errors.New("The type argument either has to be 'database' or 'files'")
 			}
+
+			if !govalidator.IsDNSName(fromServer) {
+				return errors.New("Provide a valid destination hostname")
+			}
+
 			return nil
 		}
 	},
@@ -52,15 +67,15 @@ to quickly create a Cobra application.`,
 func init() {
 	rootCmd.AddCommand(syncCmd)
 
-	//syncCmd.
-
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
 	syncCmd.PersistentFlags().StringVar(&syncType, "type", "", "Either 'database' or 'files'")
+	syncCmd.PersistentFlags().StringVar(&fromServer, "from_server", "", "Provide the hostname of the server to pull the data from")
+	syncCmd.PersistentFlags().StringVar(&filesPath, "files_path", "", "Provide the location of where the files are located")
+}
 
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	syncCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+func sync() {
+	if syncType == "files" {
+		syncFiles(fromServer, filesPath)
+	} else {
+		//syncDatabase()
+	}
 }
