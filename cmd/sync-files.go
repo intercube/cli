@@ -7,11 +7,11 @@ import (
 	"time"
 )
 
-func syncFiles(destination string, filesPath string) {
+func syncFiles(destination string, filesPath string, remoteUser string) {
 	fmt.Printf("Syncing files from server %v and path %v\n", destination, filesPath)
 
 	task := grsync.NewTask(
-		fmt.Sprintf("root@%v:%v", destination, filesPath),
+		fmt.Sprintf("%v@%v:%v", remoteUser, destination, filesPath),
 		"./",
 		grsync.RsyncOptions{},
 	)

@@ -26,6 +26,7 @@ import "github.com/asaskevich/govalidator"
 var syncType string
 var fromServer string
 var filesPath string
+var remoteUser string
 
 var syncCmd = &cobra.Command{
 	Use:   "sync [files|database] [destination]",
@@ -51,6 +52,12 @@ var syncCmd = &cobra.Command{
 				filesPath = viper.GetStringMapString("file_syncing")["path"]
 			}
 
+			if len(args) > 3 {
+				remoteUser = args[3]
+			} else {
+				remoteUser = viper.GetString("remote_user")
+			}
+
 			if syncType != "database" && syncType != "files" {
 				return errors.New("The type argument either has to be 'database' or 'files'")
 			}
@@ -70,11 +77,12 @@ func init() {
 	syncCmd.PersistentFlags().StringVar(&syncType, "type", "", "Either 'database' or 'files'")
 	syncCmd.PersistentFlags().StringVar(&fromServer, "from_server", "", "Provide the hostname of the server to pull the data from")
 	syncCmd.PersistentFlags().StringVar(&filesPath, "files_path", "", "Provide the location of where the files are located")
+	syncCmd.PersistentFlags().StringVar(&remoteUser, "remote_user", "", "Provide the user to connect to the server")
 }
 
 func sync() {
 	if syncType == "files" {
-		syncFiles(fromServer, filesPath)
+		syncFiles(fromServer, filesPath, remoteUser)
 	} else {
 		//syncDatabase()
 	}

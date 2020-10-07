@@ -69,6 +69,7 @@ func initConfig() {
 	viper.AutomaticEnv()
 
 	viper.SetDefault("file_syncing", map[string]string{})
+	viper.SetDefault("remote_user", "")
 
 	if err := viper.ReadInConfig(); err == nil {
 		fmt.Println("Using config file:", viper.ConfigFileUsed())
