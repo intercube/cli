@@ -18,6 +18,7 @@ package cmd
 import (
 	"fmt"
 	"github.com/spf13/cobra"
+	"intercube/intercube"
 	"os"
 
 	homedir "github.com/mitchellh/go-homedir"
@@ -51,6 +52,8 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.intercube.yaml)")
 }
 
+var config intercube.Configuration
+
 func initConfig() {
 	viper.SetConfigName("config")
 	if cfgFile != "" {
@@ -73,5 +76,10 @@ func initConfig() {
 
 	if err := viper.ReadInConfig(); err == nil {
 		fmt.Println("Using config file:", viper.ConfigFileUsed())
+	}
+
+	err := viper.Unmarshal(&config)
+	if err != nil {
+		panic(fmt.Errorf("Unable to decode Config: %s \n", err))
 	}
 }
