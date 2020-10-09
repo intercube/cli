@@ -44,14 +44,11 @@ func symlink(from string, to string) {
 			fmt.Printf("Mapped %v to %v\n", from, to)
 		}
 	} else {
-		fmt.Printf("Destination file %v already exists\n", to)
+		fmt.Print(fmt.Errorf("Destination file %v already exists\n", to))
 	}
 }
 
 func fileExists(filename string) bool {
-	info, err := os.Stat(filename)
-	if os.IsNotExist(err) {
-		return false
-	}
-	return !info.IsDir()
+	_, err := os.Stat(filename)
+	return !os.IsNotExist(err)
 }
