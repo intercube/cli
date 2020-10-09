@@ -36,10 +36,10 @@ func init() {
 }
 
 func symlink(from string, to string) {
-	if fileExists(to) {
+	if !fileExists(to) {
 		err := os.Symlink(from, to)
 		if err != nil {
-			panic(fmt.Errorf("Unable to decode Config: %s \n", err))
+			panic(fmt.Errorf("Unable to map: %s \n", err))
 		} else {
 			fmt.Printf("Mapped %v to %v\n", from, to)
 		}
