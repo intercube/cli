@@ -1,5 +1,5 @@
 /*
-Copyright © 2020 NAME HERE <EMAIL ADDRESS>
+Copyright © 2020 Intercube <opensource@intercube.io>
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -26,6 +26,7 @@ import (
 )
 
 var cfgFile string
+var Verbose bool
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -47,9 +48,10 @@ func Execute() {
 }
 
 func init() {
-	cobra.OnInitialize(initConfig)
-
+	rootCmd.PersistentFlags().BoolVarP(&Verbose, "verbose", "v", false, "verbose output")
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.intercube.yaml)")
+
+	cobra.OnInitialize(initConfig)
 }
 
 var config intercube.Configuration
@@ -75,11 +77,20 @@ func initConfig() {
 	viper.SetDefault("remote_user", "")
 
 	if err := viper.ReadInConfig(); err == nil {
-		fmt.Println("Using config file:", viper.ConfigFileUsed())
+		if Verbose {
+			fmt.Println("Using config file:", viper.ConfigFileUsed())
+		}
 	}
 
 	err := viper.Unmarshal(&config)
 	if err != nil {
 		panic(fmt.Errorf("Unable to decode Config: %s \n", err))
+	}
+}
+
+func displayMagentoCommands(commands []*cobra.Command) {
+	fmt.Println("This command has the following sub commands:")
+	for _, command := range commands {
+		fmt.Printf("\t%v (%v)\n", command.Use, command.Short)
 	}
 }
