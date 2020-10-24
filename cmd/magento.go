@@ -16,7 +16,14 @@ limitations under the License.
 package cmd
 
 import (
+	"bytes"
+	"encoding/json"
+	"fmt"
 	"github.com/spf13/cobra"
+	"log"
+	"net/url"
+	"os/exec"
+	"strings"
 )
 
 // magentoCmd represents the magento command
@@ -29,24 +36,84 @@ var magentoCmd = &cobra.Command{
 }
 
 var baseUrlCmd = &cobra.Command{
-	Use:   "base-url",
-	Short: "Sets base URL based on ~/.intercube.yaml",
+	Use:   "base-urls",
+	Short: "Sets base URL based on the current web/secure/base_url value",
 	Run: func(cmd *cobra.Command, args []string) {
+		command := executeN98Command(
+			"config:store:get",
+			"web/secure/base_url",
+			"--format=json",
+		)
 
+		var result map[string]json.RawMessage
+		err := json.Unmarshal(command.Bytes(), &result)
+
+		if err != nil {
+			panic(err)
+		}
+
+		for _, item := range result {
+			var baseUrl BaseUrl
+			err = json.Unmarshal(item, &baseUrl)
+
+			if err != nil {
+				panic(err)
+			}
+
+			fragments, _ := url.Parse(baseUrl.Value)
+
+			if !strings.HasSuffix(fragments.Host, ".mycube.dev") {
+				fragments.Host = fragments.Host + ".mycube.dev"
+				fmt.Printf(
+					"/usr/local/bin/n98-magerun2 config:store:set web/secure/base_url --scope=%v --scope-id=%v %v\n",
+					baseUrl.Scope,
+					baseUrl.ScopeId,
+					fragments.String())
+
+				executeN98Command(
+					"config:store:set",
+					"web/secure/base_url",
+					fmt.Sprintf("--scope=%v", baseUrl.Scope),
+					fmt.Sprintf("--scope-id=%v", baseUrl.ScopeId),
+					fmt.Sprintf("%v", fragments.String()))
+
+				executeN98Command(
+					"config:store:set",
+					"web/unsecure/base_url",
+					fmt.Sprintf("--scope=%v", baseUrl.Scope),
+					fmt.Sprintf("--scope-id=%v", baseUrl.ScopeId),
+					fmt.Sprintf("%v", fragments.String()))
+			}
+		}
 	},
+}
+
+func executeN98Command(args ...string) bytes.Buffer {
+	command := exec.Command("n98-magerun2", args...)
+
+	var out bytes.Buffer
+	var outErr bytes.Buffer
+
+	command.Stdout = &out
+	command.Stderr = &outErr
+
+	err := command.Run()
+	if err != nil {
+		println(command.String())
+		log.Fatal(outErr.String())
+	}
+
+	return out
 }
 
 func init() {
 	rootCmd.AddCommand(magentoCmd)
 	magentoCmd.AddCommand(baseUrlCmd)
+}
 
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// magentoCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// magentoCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+type BaseUrl struct {
+	Path    string
+	Scope   string
+	ScopeId string `json:"Scope-ID"`
+	Value   string
 }
