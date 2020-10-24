@@ -35,6 +35,8 @@ var magentoCmd = &cobra.Command{
 	},
 }
 
+var appendDomain = ".mycube.dev"
+
 var baseUrlCmd = &cobra.Command{
 	Use:   "base-urls",
 	Short: "Sets base URL based on the current web/secure/base_url value",
@@ -99,7 +101,10 @@ func executeN98Command(args ...string) bytes.Buffer {
 
 	err := command.Run()
 	if err != nil {
-		println(command.String())
+		if Verbose {
+			println(command.String())
+		}
+
 		log.Fatal(outErr.String())
 	}
 
@@ -109,6 +114,12 @@ func executeN98Command(args ...string) bytes.Buffer {
 func init() {
 	rootCmd.AddCommand(magentoCmd)
 	magentoCmd.AddCommand(baseUrlCmd)
+
+	magentoCmd.PersistentFlags().StringVar(
+		&appendDomain,
+		"append_domain",
+		".mycube.dev",
+		"Domain that will be appended to current value of web/secure/base_url")
 }
 
 type BaseUrl struct {
