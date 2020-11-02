@@ -136,6 +136,7 @@ var loginCmd = &cobra.Command{
 			"-addr="+boundaryUrl,
 			"-username="+sshUsername,
 			"-host-id="+hostsList[i].Id,
+			"-token="+at.Item.Token,
 		)
 		command.Stdin = os.Stdin
 		command.Stdout = os.Stdout

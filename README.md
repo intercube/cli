@@ -1,4 +1,3 @@
-### Test files sync with:
-```shell script
-go run main.go sync files my_server.com /home/this/path
-```
+## Intercube CLI
+This command line interface allows you to connect, manage, and synchronize data from your Intercube cubes (servers).
+
