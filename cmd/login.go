@@ -146,8 +146,8 @@ var loginCmd = &cobra.Command{
 
 type bellSkipper struct{}
 
-// Write implements an io.WriterCloser over os.Stderr, but it skips the terminal
-// bell character.
+// This solves the issue where manifoldco/promptui sends out an annoying bell sound whenever you hit a key (on MacOS)
+// Write implements an io.WriterCloser over os.Stderr, but it skips the terminal bell character.
 func (bs *bellSkipper) Write(b []byte) (int, error) {
 	const charBell = 7 // c.f. readline.CharBell
 	if len(b) == 1 && b[0] == charBell {
