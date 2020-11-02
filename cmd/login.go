@@ -18,16 +18,22 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"github.com/hashicorp/boundary/api"
 	"github.com/hashicorp/boundary/api/authmethods"
 	"github.com/hashicorp/boundary/api/hostcatalogs"
 	"github.com/hashicorp/boundary/api/hosts"
 	"github.com/hashicorp/boundary/api/scopes"
+	"github.com/manifoldco/promptui"
 	"github.com/spf13/cobra"
-
-	"github.com/hashicorp/boundary/api"
+	"os"
+	"os/exec"
+	"sort"
+	"strings"
 )
 
 const boundaryUrl = "http://controller.boundary.intercube.cloud:9200"
+
+var sshUsername = "root"
 
 // loginCmd represents the login command
 var loginCmd = &cobra.Command{
@@ -77,10 +83,91 @@ var loginCmd = &cobra.Command{
 			hostsList = append(hostsList, hostsResult.Items...)
 		}
 
-		fmt.Printf("Total of %v hosts found\n", len(hostsList))
+		sort.Slice(hostsList[:], func(i, j int) bool {
+			return hostsList[i].Name < hostsList[j].Name
+		})
+
+		fmt.Printf("Total of %v hosts available\n\n", len(hostsList))
+
+		templates := &promptui.SelectTemplates{
+			Label:    "{{ . }}?",
+			Active:   "\U0001F9CA {{ .Name | red }}",
+			Inactive: "  {{ .Name | cyan }}",
+			Selected: "\U0001F336 {{ .Name | red | cyan }}",
+			Details: `
+--------- Host ----------
+{{ "Name:" | faint }}	{{ .Name }}
+{{range $key, $value := .Attributes}}{{ $key }}{{ ":" | faint }}	{{ $value }}{{end}}
+`,
+		}
+
+		searcher := func(input string, index int) bool {
+			host := hostsList[index]
+			name := strings.Replace(strings.ToLower(host.Name), " ", "", -1)
+			input = strings.Replace(strings.ToLower(input), " ", "", -1)
+
+			return strings.Contains(name, input)
+		}
+
+		prompt := promptui.Select{
+			Label:     "Which host would you like to connect to?",
+			Items:     hostsList,
+			Templates: templates,
+			Size:      8,
+			Searcher:  searcher,
+			Stdout:    &bellSkipper{},
+		}
+
+		i, _, err := prompt.Run()
+
+		if err != nil {
+			fmt.Printf("Prompt failed %v\n", err)
+			return
+		}
+
+		fmt.Printf("Connecting to host: %s\n", hostsList[i].Name)
+
+		command := exec.Command(
+			"/usr/local/bin/boundary",
+			"connect",
+			"ssh",
+			"-target-name=ssh",
+			"-target-scope-id="+hostsList[i].Scope.Id,
+			"-addr="+boundaryUrl,
+			"-username="+sshUsername,
+			"-host-id="+hostsList[i].Id,
+		)
+		command.Stdin = os.Stdin
+		command.Stdout = os.Stdout
+		command.Stderr = os.Stderr
+		_ = command.Run()
 	},
+}
+
+type bellSkipper struct{}
+
+// Write implements an io.WriterCloser over os.Stderr, but it skips the terminal
+// bell character.
+func (bs *bellSkipper) Write(b []byte) (int, error) {
+	const charBell = 7 // c.f. readline.CharBell
+	if len(b) == 1 && b[0] == charBell {
+		return 0, nil
+	}
+	return os.Stderr.Write(b)
+}
+
+// Close implements an io.WriterCloser over os.Stderr.
+func (bs *bellSkipper) Close() error {
+	return os.Stderr.Close()
 }
 
 func init() {
 	rootCmd.AddCommand(loginCmd)
+
+	loginCmd.PersistentFlags().StringVar(
+		&sshUsername,
+		"ssh_username",
+		"root",
+		"Username used to connect with the server",
+	)
 }
