@@ -93,7 +93,7 @@ var loginCmd = &cobra.Command{
 			Label:    "{{ . }}?",
 			Active:   "\U0001F9CA {{ .Name | red }}",
 			Inactive: "  {{ .Name | cyan }}",
-			Selected: "\U0001F336 {{ .Name | red | cyan }}",
+			Selected: "\U0001F9CA {{ .Name | red | cyan }}",
 			Details: `
 --------- Host ----------
 {{ "Name:" | faint }}	{{ .Name }}
