@@ -40,6 +40,11 @@ var loginCmd = &cobra.Command{
 	Use:   "login",
 	Short: "Login with your API token",
 	Run: func(cmd *cobra.Command, args []string) {
+		boundaryPath, err := exec.LookPath("boundary")
+		if err != nil {
+			panic("Boundary not installed on this machine. Download & install boundary before using the login function (https://learn.hashicorp.com/tutorials/boundary/getting-started-install)")
+		}
+
 		apiConfig, _ := api.DefaultConfig()
 		apiConfig.Addr = boundaryUrl
 
@@ -128,7 +133,7 @@ var loginCmd = &cobra.Command{
 		fmt.Printf("Connecting to host: %s\n", hostsList[i].Name)
 
 		command := exec.Command(
-			"/usr/local/bin/boundary",
+			boundaryPath,
 			"connect",
 			"ssh",
 			"-target-name=ssh",
