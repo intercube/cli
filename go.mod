@@ -7,7 +7,7 @@ require (
 	github.com/bradfitz/slice v0.0.0-20180809154707-2b758aa73013
 	github.com/briandowns/spinner v1.11.1
 	github.com/hashicorp/boundary/api v0.0.1
-	github.com/hashicorp/boundary/sdk v0.0.1
+	github.com/hashicorp/boundary/sdk v0.0.3
 	github.com/manifoldco/promptui v0.8.0
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/spf13/cobra v1.1.1
