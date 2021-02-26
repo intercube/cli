@@ -10,7 +10,7 @@ require (
 	github.com/hashicorp/boundary/sdk v0.0.1
 	github.com/manifoldco/promptui v0.8.0
 	github.com/mitchellh/go-homedir v1.1.0
-	github.com/spf13/cobra v1.1.1
+	github.com/spf13/cobra v1.1.3
 	github.com/spf13/viper v1.7.1
 	github.com/zloylos/grsync v0.0.0-20200714211139-9a0bc6952e30
 	go4.org v0.0.0-20200411211856-f5505b9728dd // indirect
