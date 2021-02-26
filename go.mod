@@ -5,7 +5,7 @@ go 1.15
 require (
 	github.com/asaskevich/govalidator v0.0.0-20200907205600-7a23bdc65eef
 	github.com/bradfitz/slice v0.0.0-20180809154707-2b758aa73013
-	github.com/briandowns/spinner v1.11.1
+	github.com/briandowns/spinner v1.12.0
 	github.com/hashicorp/boundary/api v0.0.1
 	github.com/hashicorp/boundary/sdk v0.0.1
 	github.com/manifoldco/promptui v0.8.0
