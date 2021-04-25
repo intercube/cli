@@ -60,12 +60,17 @@ var loginCmd = &cobra.Command{
 
 		am := authmethods.NewClient(client)
 
-		at, err := am.Authenticate(context.Background(), config.Login.AuthMethod, credentials)
+		at, err := am.Authenticate(context.Background(), config.Login.AuthMethod, "login", credentials)
 		if err != nil {
 			panic(err)
 		}
 
-		client.SetToken(at.Item.Token)
+		var token string
+		if x, found := at.Attributes["token"]; found {
+			token, _ = x.(string)
+		}
+
+		client.SetToken(token)
 
 		scopes := scopes.NewClient(client)
 		ctx := context.Background()
@@ -141,7 +146,7 @@ var loginCmd = &cobra.Command{
 			"-addr="+boundaryUrl,
 			"-username="+sshUsername,
 			"-host-id="+hostsList[i].Id,
-			"-token="+at.Item.Token,
+			"-token="+token,
 		)
 		command.Stdin = os.Stdin
 		command.Stdout = os.Stdout
