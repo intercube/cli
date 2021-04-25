@@ -1,4 +1,4 @@
-package config
+package main
 
 type Configuration struct {
 	Mappings        []Map            `mapstructure:"mappings"`
