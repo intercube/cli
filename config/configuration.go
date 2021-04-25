@@ -1,4 +1,4 @@
-package intercube
+package config
 
 type Configuration struct {
 	Mappings        []Map            `mapstructure:"mappings"`
