@@ -18,7 +18,7 @@ package cmd
 import (
 	"fmt"
 	"github.com/spf13/cobra"
-	"intercube/intercube"
+	"github.com/intercube/cli/intercube"
 	"os"
 
 	homedir "github.com/mitchellh/go-homedir"

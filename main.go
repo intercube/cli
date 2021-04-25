@@ -15,7 +15,7 @@ limitations under the License.
 */
 package main
 
-import "intercube/cmd"
+import "github.com/intercube/cli/cmd"
 
 func main() {
 	cmd.Execute()
