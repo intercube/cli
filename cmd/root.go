@@ -17,8 +17,8 @@ package cmd
 
 import (
 	"fmt"
+	"github.com/intercube/intercube/util"
 	"github.com/spf13/cobra"
-	"github.com/intercube/cli/intercube"
 	"os"
 
 	homedir "github.com/mitchellh/go-homedir"
@@ -54,7 +54,7 @@ func init() {
 	cobra.OnInitialize(initConfig)
 }
 
-var config intercube.Configuration
+var config util.Configuration
 
 func initConfig() {
 	viper.SetConfigName("config")

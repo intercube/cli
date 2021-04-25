@@ -1,4 +1,4 @@
-module github.com/intercube/cli
+module github.com/intercube/intercube
 
 go 1.15
 
