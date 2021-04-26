@@ -88,7 +88,7 @@ func initConfig() {
 	}
 }
 
-func displayMagentoCommands(commands []*cobra.Command) {
+func displaySubCommands(commands []*cobra.Command) {
 	fmt.Println("This command has the following sub commands:")
 	for _, command := range commands {
 		fmt.Printf("\t%v (%v)\n", command.Use, command.Short)

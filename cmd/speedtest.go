@@ -16,18 +16,85 @@ limitations under the License.
 package cmd
 
 import (
+	"errors"
 	"fmt"
-
+	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
+	"github.com/tcnksm/go-httpstat"
+	"io"
+	"io/ioutil"
+	"net"
+	"net/http"
+	"os"
+	"time"
 )
 
 // speedtestCmd represents the speedtest command
 var speedtestCmd = &cobra.Command{
-	Use:   "speedtest",
+	Use:   "speedtest [url]",
 	Short: "Speed tests a site from this machine",
-	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("speedtest called")
+	PreRunE: func(cmd *cobra.Command, args []string) error {
+		if len(args) < 1 {
+			return errors.New("The type argument is required")
+		}
+
+		return nil
 	},
+	Run: func(cmd *cobra.Command, args []string) {
+		speedtest(args[0])
+	},
+}
+
+func speedtest(testableUrl string) {
+	t := &http.Transport{
+		Dial: (&net.Dialer{
+			Timeout: 5 * time.Second,
+		}).Dial,
+		TLSHandshakeTimeout: 5 * time.Second,
+	}
+	c := &http.Client{
+		Timeout:   time.Second * 10,
+		Transport: t,
+	}
+
+	req, err := http.NewRequest("GET", testableUrl, nil)
+	if err != nil {
+		panic(err)
+	}
+
+	var result httpstat.Result
+	ctx := httpstat.WithHTTPStat(req.Context(), &result)
+	req = req.WithContext(ctx)
+
+	resp, err := c.Do(req)
+	if err != nil {
+		panic(err)
+	}
+	defer resp.Body.Close()
+	io.Copy(ioutil.Discard, resp.Body)
+
+	end := time.Now()
+
+	speedData := [][]string{
+		{"DNS lookup", fmt.Sprintf("%d ms", int(result.DNSLookup/time.Millisecond))},
+		{"TCP connection", fmt.Sprintf("%d ms", int(result.TCPConnection/time.Millisecond))},
+		{"TLS handshake", fmt.Sprintf("%d ms", int(result.TCPConnection/time.Millisecond))},
+		{"Server processing", fmt.Sprintf("%d ms", int(result.ServerProcessing/time.Millisecond))},
+		{"Content transfer", fmt.Sprintf("%d ms", int(result.ContentTransfer(end)/(time.Millisecond)))},
+		{"Name Lookup", fmt.Sprintf("%d ms", int(result.NameLookup/time.Millisecond))},
+		{"Connect", fmt.Sprintf("%d ms", int(result.Connect/time.Millisecond))},
+		{"Pre Transfer", fmt.Sprintf("%d ms", int(result.Pretransfer/time.Millisecond))},
+		{"Start Transfer", fmt.Sprintf("%d ms", int(result.StartTransfer/time.Millisecond))},
+		{"Total", fmt.Sprintf("%d ms", int(result.Total(end)/time.Millisecond))},
+	}
+
+	table := tablewriter.NewWriter(os.Stdout)
+	table.SetHeader([]string{"Result type", "Time taken"})
+
+	for _, v := range speedData {
+		table.Append(v)
+	}
+	table.Render()
 }
 
 func init() {
