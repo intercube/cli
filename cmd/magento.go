@@ -31,7 +31,7 @@ var magentoCmd = &cobra.Command{
 	Use:   "magento",
 	Short: "Executes Magento 2 intercube commands",
 	Run: func(cmd *cobra.Command, args []string) {
-		displayMagentoCommands(cmd.Commands())
+		displaySubCommands(cmd.Commands())
 	},
 }
 
