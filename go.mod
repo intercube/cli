@@ -7,9 +7,8 @@ require (
 	github.com/briandowns/spinner v1.12.0
 	github.com/fatih/color v1.10.0 // indirect
 	github.com/fsnotify/fsnotify v1.4.9 // indirect
-	github.com/go-kit/kit v0.10.0
 	github.com/golang/protobuf v1.5.2 // indirect
-	github.com/hashicorp/boundary/api v0.0.9
+	github.com/hashicorp/boundary/api v0.0.10
 	github.com/hashicorp/go-hclog v0.16.0 // indirect
 	github.com/lunixbochs/vtclean v1.0.0 // indirect
 	github.com/magiconair/properties v1.8.5 // indirect
