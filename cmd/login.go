@@ -31,7 +31,7 @@ import (
 	"strings"
 )
 
-const boundaryUrl = "http://controller.boundary.intercube.cloud:9200"
+const boundaryUrl = "https://controller.boundary.intercube.cloud"
 
 var sshUsername = "root"
 
