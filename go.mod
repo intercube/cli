@@ -5,7 +5,7 @@ go 1.15
 require (
 	github.com/asaskevich/govalidator v0.0.0-20210307081110-f21760c49a8d
 	github.com/briandowns/spinner v1.18.1
-	github.com/hashicorp/boundary/api v0.0.21
+	github.com/hashicorp/boundary/api v0.0.22
 	github.com/manifoldco/promptui v0.9.0
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e // indirect
