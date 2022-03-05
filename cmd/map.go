@@ -36,15 +36,19 @@ func init() {
 }
 
 func symlink(from string, to string) {
-	if !fileExists(to) {
-		err := os.Symlink(from, to)
-		if err != nil {
-			panic(fmt.Errorf("Unable to map: %s \n", err))
-		} else {
-			fmt.Printf("Mapped %v to %v\n", from, to)
-		}
+	if !fileExists(from) {
+		fmt.Print(fmt.Errorf("Origin file %v does not exists\n", to))
 	} else {
-		fmt.Print(fmt.Errorf("Destination file %v already exists\n", to))
+		if !fileExists(to) {
+			err := os.Symlink(from, to)
+			if err != nil {
+				panic(fmt.Errorf("Unable to map: %s \n", err))
+			} else {
+				fmt.Printf("Mapped %v to %v\n", from, to)
+			}
+		} else {
+			fmt.Print(fmt.Errorf("Destination file %v already exists\n", to))
+		}
 	}
 }
 
