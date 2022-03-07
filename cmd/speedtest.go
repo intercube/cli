@@ -76,16 +76,16 @@ func speedtest(testableUrl string) {
 	end := time.Now()
 
 	speedData := [][]string{
-		{"DNS lookup", fmt.Sprintf("%d ms", int(result.DNSLookup/time.Millisecond))},
-		{"TCP connection", fmt.Sprintf("%d ms", int(result.TCPConnection/time.Millisecond))},
-		{"TLS handshake", fmt.Sprintf("%d ms", int(result.TCPConnection/time.Millisecond))},
-		{"Server processing", fmt.Sprintf("%d ms", int(result.ServerProcessing/time.Millisecond))},
-		{"Content transfer", fmt.Sprintf("%d ms", int(result.ContentTransfer(end)/(time.Millisecond)))},
-		{"Name Lookup", fmt.Sprintf("%d ms", int(result.NameLookup/time.Millisecond))},
-		{"Connect", fmt.Sprintf("%d ms", int(result.Connect/time.Millisecond))},
-		{"Pre Transfer", fmt.Sprintf("%d ms", int(result.Pretransfer/time.Millisecond))},
-		{"Start Transfer", fmt.Sprintf("%d ms", int(result.StartTransfer/time.Millisecond))},
-		{"Total", fmt.Sprintf("%d ms", int(result.Total(end)/time.Millisecond))},
+		{"DNS lookup", fmt.Sprintf("%d ms", result.DNSLookup/time.Millisecond)},
+		{"TCP connection", fmt.Sprintf("%d ms", result.TCPConnection/time.Millisecond)},
+		{"TLS handshake", fmt.Sprintf("%d ms", result.TCPConnection/time.Millisecond)},
+		{"Server processing", fmt.Sprintf("%d ms", result.ServerProcessing/time.Millisecond)},
+		{"Content transfer", fmt.Sprintf("%d ms", result.ContentTransfer(end)/(time.Millisecond))},
+		{"Name Lookup", fmt.Sprintf("%d ms", result.NameLookup/time.Millisecond)},
+		{"Connect", fmt.Sprintf("%d ms", result.Connect/time.Millisecond)},
+		{"Pre Transfer", fmt.Sprintf("%d ms", result.Pretransfer/time.Millisecond)},
+		{"Start Transfer", fmt.Sprintf("%d ms", result.StartTransfer/time.Millisecond)},
+		{"Total", fmt.Sprintf("%d ms", result.Total(end)/time.Millisecond)},
 	}
 
 	table := tablewriter.NewWriter(os.Stdout)
