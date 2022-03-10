@@ -559,8 +559,8 @@ github.com/yuin/goldmark v1.1.27/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9de
 github.com/yuin/goldmark v1.1.32/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
 github.com/yuin/goldmark v1.2.1/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
 github.com/yuin/goldmark v1.3.5/go.mod h1:mwnBkeHKe2W/ZEtQ+71ViKU8L12m81fl3OWwC1Zlc8k=
-github.com/zloylos/grsync v1.6.0 h1:yGS0v7sHj8g32xMsg6zn5XIcAA/eZLPmzZLPiV6bGso=
-github.com/zloylos/grsync v1.6.0/go.mod h1:0Ue43fnWwx3doC5GkfmwmUwCAvQ54h06FRHXXX3ZWls=
+github.com/zloylos/grsync v1.6.1 h1:TShhGwI6Xi38pc58kS97ExnmqH7nBt/n6So6hqR5r54=
+github.com/zloylos/grsync v1.6.1/go.mod h1:0Ue43fnWwx3doC5GkfmwmUwCAvQ54h06FRHXXX3ZWls=
 go.etcd.io/bbolt v1.3.2/go.mod h1:IbVyRI1SCnLcuJnV2u8VeU0CEYM7e686BmAb1XKL+uU=
 go.etcd.io/etcd/api/v3 v3.5.1/go.mod h1:cbVKeC6lCfl7j/8jBhAK6aIYO9XOjdptoxU/nLQcPvs=
 go.etcd.io/etcd/client/pkg/v3 v3.5.1/go.mod h1:IJHfcCEKxYu1Os13ZdwCwIUTUVGYTSAM3YSwc9/Ac1g=
