@@ -12,7 +12,7 @@ require (
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/spf13/cobra v1.1.3
 	github.com/spf13/viper v1.14.0
-	github.com/tcnksm/go-httpstat v0.1.1-0.20170410140047-fae40520f4ba
+	github.com/tcnksm/go-httpstat v0.2.0
 	github.com/zloylos/grsync v1.7.0
 	gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f // indirect
 )
