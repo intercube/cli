@@ -1,11 +1,11 @@
 /*
-Copyright © 2022 Intercube <opensource@intercube.io>
+Copyright © 2023 Intercube <opensource@intercube.io>
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+	http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -70,6 +70,10 @@ var loginCmd = &cobra.Command{
 			token, _ = x.(string)
 		}
 
+		err = os.Setenv("BOUNDARY_TOKEN", token)
+		if err != nil {
+			panic(err)
+		}
 		client.SetToken(token)
 
 		scopes := scopes.NewClient(client)
@@ -146,7 +150,7 @@ var loginCmd = &cobra.Command{
 			"-addr="+boundaryUrl,
 			"-username="+sshUsername,
 			"-host-id="+hostsList[i].Id,
-			"-token="+token,
+			"-token=env://BOUNDARY_TOKEN",
 		)
 		command.Stdin = os.Stdin
 		command.Stdout = os.Stdout
