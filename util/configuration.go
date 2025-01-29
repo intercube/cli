@@ -18,8 +18,9 @@ type MagentoBaseUrl struct {
 }
 
 type Login struct {
-	Username   string
-	Password   string
-	Scope      string
-	AuthMethod string `mapstructure:"auth_method"`
+	Username    string
+	Password    string
+	Scope       string
+	AuthMethod  string `mapstructure:"auth_method"`
+	InstanceUrl string `mapstructure:"instance_url"`
 }
