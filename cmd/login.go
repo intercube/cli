@@ -134,16 +134,21 @@ var loginCmd = &cobra.Command{
 			fmt.Println()
 		}
 
+		detailsTemplate := `
+--------- Host ----------
+{{ "Name:" | faint }}	{{ .Name }}
+{{range $key, $value := .Attributes}}{{ $key }}{{ ":" | faint }}	{{ $value }}{{end}}
+`
+		if len(args) == 1 {
+			detailsTemplate = ""
+		}
+
 		templates := &promptui.SelectTemplates{
 			Label:    "{{ . }}?",
 			Active:   "\U0001F9CA {{ .Name | red }}",
 			Inactive: "  {{ .Name | cyan }}",
 			Selected: "\U0001F9CA {{ .Name | red | cyan }}",
-			Details: `
---------- Host ----------
-{{ "Name:" | faint }}	{{ .Name }}
-{{range $key, $value := .Attributes}}{{ $key }}{{ ":" | faint }}	{{ $value }}{{end}}
-`,
+			Details:  detailsTemplate,
 		}
 
 		searcher := func(input string, index int) bool {
@@ -154,11 +159,16 @@ var loginCmd = &cobra.Command{
 			return strings.Contains(name, input)
 		}
 
+		promptSize := 8
+		if len(filteredHosts) < promptSize {
+			promptSize = len(filteredHosts)
+		}
+
 		prompt := promptui.Select{
 			Label:     "Which host would you like to connect to?",
 			Items:     filteredHosts,
 			Templates: templates,
-			Size:      8,
+			Size:      promptSize,
 			Searcher:  searcher,
 			Stdout:    &bellSkipper{},
 		}
