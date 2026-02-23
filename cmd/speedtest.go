@@ -89,7 +89,7 @@ func speedtest(testableUrl string) {
 	}
 
 	table := tablewriter.NewWriter(os.Stdout)
-	table.SetHeader([]string{"Result type", "Time taken"})
+	table.Header("Result type", "Time taken")
 
 	for _, v := range speedData {
 		table.Append(v)
