@@ -35,13 +35,14 @@ var sshUsername = "root"
 
 // loginCmd represents the login command
 var loginCmd = &cobra.Command{
-	Use:   "login",
+	Use:   "login [host-filter]",
 	Short: "Login with your API token",
+	Args:  cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-                boundaryUrl := config.Login.InstanceUrl
-                if boundaryUrl == "" {
-                        boundaryUrl = "https://controller.boundary.intercube.cloud"
-                }
+		boundaryUrl := config.Login.InstanceUrl
+		if boundaryUrl == "" {
+			boundaryUrl = "https://controller.boundary.intercube.cloud"
+		}
 
 		boundaryPath, err := exec.LookPath("boundary")
 		if err != nil {
@@ -104,7 +105,34 @@ var loginCmd = &cobra.Command{
 			return hostsList[i].Name < hostsList[j].Name
 		})
 
-		fmt.Printf("Total of %v hosts available\n\n", len(hostsList))
+		filteredHosts := hostsList
+		if len(args) == 1 {
+			searchTerm := strings.ToLower(strings.TrimSpace(args[0]))
+			filteredHosts = make([]*hosts.Host, 0, len(hostsList))
+
+			for _, host := range hostsList {
+				if strings.Contains(strings.ToLower(host.Name), searchTerm) {
+					filteredHosts = append(filteredHosts, host)
+				}
+			}
+
+			switch len(filteredHosts) {
+			case 0:
+				fmt.Printf("No hosts matched %q\n", args[0])
+				return
+			case 1:
+				fmt.Printf("Connecting to host: %s\n", filteredHosts[0].Name)
+				connectToHost(boundaryPath, boundaryUrl, filteredHosts[0])
+				return
+			}
+		}
+
+		fmt.Printf("Total of %v hosts available\n", len(hostsList))
+		if len(args) == 1 {
+			fmt.Printf("%v hosts match %q\n\n", len(filteredHosts), args[0])
+		} else {
+			fmt.Println()
+		}
 
 		templates := &promptui.SelectTemplates{
 			Label:    "{{ . }}?",
@@ -119,7 +147,7 @@ var loginCmd = &cobra.Command{
 		}
 
 		searcher := func(input string, index int) bool {
-			host := hostsList[index]
+			host := filteredHosts[index]
 			name := strings.Replace(strings.ToLower(host.Name), " ", "", -1)
 			input = strings.Replace(strings.ToLower(input), " ", "", -1)
 
@@ -128,7 +156,7 @@ var loginCmd = &cobra.Command{
 
 		prompt := promptui.Select{
 			Label:     "Which host would you like to connect to?",
-			Items:     hostsList,
+			Items:     filteredHosts,
 			Templates: templates,
 			Size:      8,
 			Searcher:  searcher,
@@ -142,24 +170,27 @@ var loginCmd = &cobra.Command{
 			return
 		}
 
-		fmt.Printf("Connecting to host: %s\n", hostsList[i].Name)
-
-		command := exec.Command(
-			boundaryPath,
-			"connect",
-			"ssh",
-			"-target-name=ssh",
-			"-target-scope-id="+hostsList[i].Scope.Id,
-			"-addr="+boundaryUrl,
-			"-username="+sshUsername,
-			"-host-id="+hostsList[i].Id,
-			"-token=env://BOUNDARY_TOKEN",
-		)
-		command.Stdin = os.Stdin
-		command.Stdout = os.Stdout
-		command.Stderr = os.Stderr
-		_ = command.Run()
+		fmt.Printf("Connecting to host: %s\n", filteredHosts[i].Name)
+		connectToHost(boundaryPath, boundaryUrl, filteredHosts[i])
 	},
+}
+
+func connectToHost(boundaryPath, boundaryURL string, host *hosts.Host) {
+	command := exec.Command(
+		boundaryPath,
+		"connect",
+		"ssh",
+		"-target-name=ssh",
+		"-target-scope-id="+host.Scope.Id,
+		"-addr="+boundaryURL,
+		"-username="+sshUsername,
+		"-host-id="+host.Id,
+		"-token=env://BOUNDARY_TOKEN",
+	)
+	command.Stdin = os.Stdin
+	command.Stdout = os.Stdout
+	command.Stderr = os.Stderr
+	_ = command.Run()
 }
 
 type bellSkipper struct{}
