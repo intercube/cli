@@ -17,7 +17,9 @@ package cmd
 
 import (
 	"errors"
+	"fmt"
 	"github.com/spf13/viper"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -62,8 +64,24 @@ var syncCmd = &cobra.Command{
 				return errors.New("The type argument either has to be 'database' or 'files'")
 			}
 
+			if syncType == "files" {
+				var err error
+				fromServer, filesPath, remoteUser, err = ensureSyncConfiguration(fromServer, filesPath, remoteUser)
+				if err != nil {
+					return fmt.Errorf("unable to continue sync: %w", err)
+				}
+			}
+
 			if !govalidator.IsDNSName(fromServer) {
 				return errors.New("Provide a valid destination hostname")
+			}
+
+			if syncType == "files" && strings.TrimSpace(filesPath) == "" {
+				return errors.New("Provide a valid files path")
+			}
+
+			if syncType == "files" && strings.TrimSpace(remoteUser) == "" {
+				return errors.New("Provide a valid remote user")
 			}
 
 			return nil

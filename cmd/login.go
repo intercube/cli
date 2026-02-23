@@ -39,6 +39,11 @@ var loginCmd = &cobra.Command{
 	Short: "Login with your API token",
 	Args:  cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
+		if err := ensureLoginConfiguration(); err != nil {
+			fmt.Printf("Unable to continue login: %v\n", err)
+			return
+		}
+
 		boundaryUrl := config.Login.InstanceUrl
 		if boundaryUrl == "" {
 			boundaryUrl = "https://controller.boundary.intercube.cloud"
