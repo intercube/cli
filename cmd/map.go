@@ -26,6 +26,11 @@ var mapCmd = &cobra.Command{
 	Use:   "map",
 	Short: "Maps files based on config yaml file",
 	Run: func(cmd *cobra.Command, args []string) {
+		if err := ensureMappingsConfiguration(); err != nil {
+			fmt.Printf("Unable to continue map: %v\n", err)
+			return
+		}
+
 		for _, mapping := range config.Mappings {
 			symlink(mapping.From, mapping.To)
 		}
