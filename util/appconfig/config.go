@@ -12,7 +12,7 @@ var ClerkClientID = "Oi68oAK1xuK1088Z"
 var ClerkAudience = ""
 var ClerkScopes = "openid profile email offline_access"
 var ClerkCallbackPort = "8976"
-var InventoryAPIBaseURL = "http://inventory-nexus.dev-c8s.intercube.dev/"
+var InventoryAPIBaseURL = "https://inventory-nexus.dev-c8s.intercube.dev/"
 var OrganizationID = ""
 
 const (
