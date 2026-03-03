@@ -31,13 +31,11 @@ var Verbose bool
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "intercube",
-	Short: "A brief description of your application",
-	Long: `A longer description that spans multiple lines and likely contains
-examples and usage of using your application. For example:
+	Short: "Intercube CLI",
+	Long: `Intercube CLI for host access, API operations, and environment sync.
 
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
+Tip: use "intercube ssh" for host access.
+The "intercube login" command is kept as a deprecated alias.`,
 }
 
 func Execute() {
@@ -73,8 +71,7 @@ func initConfig() {
 
 	viper.AutomaticEnv()
 
-	viper.SetDefault("file_syncing", map[string]string{})
-	viper.SetDefault("remote_user", "")
+	viper.SetDefault("sync", map[string]interface{}{})
 
 	if err := viper.ReadInConfig(); err == nil {
 		if Verbose {

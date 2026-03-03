@@ -11,17 +11,38 @@ intercube onboarding
 
 The wizard can help you:
 - configure login defaults (`username`, `password`, `scope`, `auth_method`, `instance_url`)
-- optionally set sync defaults (`remote_user`, `file_syncing.from_server`, `file_syncing.path`)
-- verify local prerequisites such as Boundary CLI and the Intercube sync helper
+- optionally configure file path mappings for `intercube sync`
+- verify local prerequisites such as Boundary CLI and `rsync`
 
 After onboarding, use:
 
 ```bash
-intercube login
+intercube ssh
 ```
 
 If required settings are missing (or the config file does not exist), the CLI
 will prompt only when needed and save values automatically:
-- `intercube login` prompts for required login settings
-- `intercube sync files ...` prompts for missing sync defaults
-- `intercube map` prompts to create mappings when none exist
+- `intercube ssh` prompts for required login settings
+- `intercube sync` prompts for missing file path mappings
+- `intercube map --interactive` prompts to create mappings when none exist
+
+`intercube login` is kept as a deprecated alias and prints a warning to use `intercube ssh`.
+
+### Sync
+
+Use sync from a source environment host:
+
+```bash
+intercube sync
+intercube sync staging.example.com
+intercube sync --files
+intercube sync --database
+intercube sync --dry-run
+```
+
+Behavior:
+- always fetches current site inventory at runtime
+- interactive target selection when no argument is passed
+- argument auto-resolves against site ID/domain/server/user when possible
+- stores only file path mappings in config (`sync.files.items`)
+- database details are requested interactively for each run (not persisted)

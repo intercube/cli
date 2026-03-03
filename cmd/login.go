@@ -33,161 +33,179 @@ import (
 
 var sshUsername = "root"
 
-// loginCmd represents the login command
-var loginCmd = &cobra.Command{
-	Use:   "login [host-filter]",
-	Short: "Login with your API token",
+var sshCmd = &cobra.Command{
+	Use:   "ssh [host-filter]",
+	Short: "Connect to a host over Boundary SSH",
 	Args:  cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		if err := ensureLoginConfiguration(); err != nil {
-			fmt.Printf("Unable to continue login: %v\n", err)
+		runBoundarySSH(args, false)
+	},
+}
+
+// loginCmd is deprecated; use sshCmd.
+var loginCmd = &cobra.Command{
+	Use:        "login [host-filter]",
+	Short:      "Deprecated: use `intercube ssh`",
+	Args:       cobra.MaximumNArgs(1),
+	Deprecated: "use `intercube ssh` instead",
+	Run: func(cmd *cobra.Command, args []string) {
+		runBoundarySSH(args, true)
+	},
+}
+
+func runBoundarySSH(args []string, fromDeprecatedLogin bool) {
+	if fromDeprecatedLogin {
+		fmt.Println("Warning: `intercube login` is deprecated. Use `intercube ssh` instead.")
+	}
+
+	if err := ensureLoginConfiguration(); err != nil {
+		fmt.Printf("Unable to continue SSH session: %v\n", err)
+		return
+	}
+
+	boundaryUrl := config.Login.InstanceUrl
+	if boundaryUrl == "" {
+		boundaryUrl = "https://controller.boundary.intercube.cloud"
+	}
+
+	boundaryPath, err := exec.LookPath("boundary")
+	if err != nil {
+		panic("Boundary is not installed. Download and install Boundary before using `intercube ssh` (https://learn.hashicorp.com/tutorials/boundary/getting-started-install)")
+	}
+
+	apiConfig, _ := api.DefaultConfig()
+	apiConfig.Addr = boundaryUrl
+
+	client, err := api.NewClient(apiConfig)
+	if err != nil {
+		panic(err)
+	}
+
+	credentials := map[string]interface{}{
+		"login_name": config.Login.Username,
+		"password":   config.Login.Password,
+	}
+
+	am := authmethods.NewClient(client)
+
+	at, err := am.Authenticate(context.Background(), config.Login.AuthMethod, "login", credentials)
+	if err != nil {
+		panic(err)
+	}
+
+	var token string
+	if x, found := at.Attributes["token"]; found {
+		token, _ = x.(string)
+	}
+
+	err = os.Setenv("BOUNDARY_TOKEN", token)
+	if err != nil {
+		panic(err)
+	}
+	client.SetToken(token)
+
+	scopes := scopes.NewClient(client)
+	ctx := context.Background()
+	scopeResults, _ := scopes.List(ctx, config.Login.Scope)
+
+	catalogsClient := hostcatalogs.NewClient(client)
+
+	var catalogs []*hostcatalogs.HostCatalog
+
+	for _, item := range scopeResults.Items {
+		catalogsResult, _ := catalogsClient.List(ctx, item.Id)
+		catalogs = append(catalogs, catalogsResult.Items...)
+	}
+
+	var hostsList []*hosts.Host
+
+	hostClient := hosts.NewClient(client)
+	for _, hostCatalog := range catalogs {
+		hostsResult, _ := hostClient.List(ctx, hostCatalog.Id)
+		hostsList = append(hostsList, hostsResult.Items...)
+	}
+
+	sort.Slice(hostsList[:], func(i, j int) bool {
+		return hostsList[i].Name < hostsList[j].Name
+	})
+
+	filteredHosts := hostsList
+	if len(args) == 1 {
+		searchTerm := strings.ToLower(strings.TrimSpace(args[0]))
+		filteredHosts = make([]*hosts.Host, 0, len(hostsList))
+
+		for _, host := range hostsList {
+			if strings.Contains(strings.ToLower(host.Name), searchTerm) {
+				filteredHosts = append(filteredHosts, host)
+			}
+		}
+
+		switch len(filteredHosts) {
+		case 0:
+			fmt.Printf("No hosts matched %q\n", args[0])
+			return
+		case 1:
+			fmt.Printf("Connecting to host: %s\n", filteredHosts[0].Name)
+			connectToHost(boundaryPath, boundaryUrl, filteredHosts[0])
 			return
 		}
+	}
 
-		boundaryUrl := config.Login.InstanceUrl
-		if boundaryUrl == "" {
-			boundaryUrl = "https://controller.boundary.intercube.cloud"
-		}
+	fmt.Printf("Total of %v hosts available\n", len(hostsList))
+	if len(args) == 1 {
+		fmt.Printf("%v hosts match %q\n\n", len(filteredHosts), args[0])
+	} else {
+		fmt.Println()
+	}
 
-		boundaryPath, err := exec.LookPath("boundary")
-		if err != nil {
-			panic("Boundary not installed on this machine. Download & install boundary before using the login function (https://learn.hashicorp.com/tutorials/boundary/getting-started-install)")
-		}
-
-		apiConfig, _ := api.DefaultConfig()
-		apiConfig.Addr = boundaryUrl
-
-		client, err := api.NewClient(apiConfig)
-		if err != nil {
-			panic(err)
-		}
-
-		credentials := map[string]interface{}{
-			"login_name": config.Login.Username,
-			"password":   config.Login.Password,
-		}
-
-		am := authmethods.NewClient(client)
-
-		at, err := am.Authenticate(context.Background(), config.Login.AuthMethod, "login", credentials)
-		if err != nil {
-			panic(err)
-		}
-
-		var token string
-		if x, found := at.Attributes["token"]; found {
-			token, _ = x.(string)
-		}
-
-		err = os.Setenv("BOUNDARY_TOKEN", token)
-		if err != nil {
-			panic(err)
-		}
-		client.SetToken(token)
-
-		scopes := scopes.NewClient(client)
-		ctx := context.Background()
-		scopeResults, _ := scopes.List(ctx, config.Login.Scope)
-
-		catalogsClient := hostcatalogs.NewClient(client)
-
-		var catalogs []*hostcatalogs.HostCatalog
-
-		for _, item := range scopeResults.Items {
-			catalogsResult, _ := catalogsClient.List(ctx, item.Id)
-			catalogs = append(catalogs, catalogsResult.Items...)
-		}
-
-		var hostsList []*hosts.Host
-
-		hostClient := hosts.NewClient(client)
-		for _, hostCatalog := range catalogs {
-			hostsResult, _ := hostClient.List(ctx, hostCatalog.Id)
-			hostsList = append(hostsList, hostsResult.Items...)
-		}
-
-		sort.Slice(hostsList[:], func(i, j int) bool {
-			return hostsList[i].Name < hostsList[j].Name
-		})
-
-		filteredHosts := hostsList
-		if len(args) == 1 {
-			searchTerm := strings.ToLower(strings.TrimSpace(args[0]))
-			filteredHosts = make([]*hosts.Host, 0, len(hostsList))
-
-			for _, host := range hostsList {
-				if strings.Contains(strings.ToLower(host.Name), searchTerm) {
-					filteredHosts = append(filteredHosts, host)
-				}
-			}
-
-			switch len(filteredHosts) {
-			case 0:
-				fmt.Printf("No hosts matched %q\n", args[0])
-				return
-			case 1:
-				fmt.Printf("Connecting to host: %s\n", filteredHosts[0].Name)
-				connectToHost(boundaryPath, boundaryUrl, filteredHosts[0])
-				return
-			}
-		}
-
-		fmt.Printf("Total of %v hosts available\n", len(hostsList))
-		if len(args) == 1 {
-			fmt.Printf("%v hosts match %q\n\n", len(filteredHosts), args[0])
-		} else {
-			fmt.Println()
-		}
-
-		detailsTemplate := `
+	detailsTemplate := `
 --------- Host ----------
 {{ "Name:" | faint }}	{{ .Name }}
 {{range $key, $value := .Attributes}}{{ $key }}{{ ":" | faint }}	{{ $value }}{{end}}
 `
-		if len(args) == 1 {
-			detailsTemplate = ""
-		}
+	if len(args) == 1 {
+		detailsTemplate = ""
+	}
 
-		templates := &promptui.SelectTemplates{
-			Label:    "{{ . }}?",
-			Active:   "\U0001F9CA {{ .Name | red }}",
-			Inactive: "  {{ .Name | cyan }}",
-			Selected: "\U0001F9CA {{ .Name | red | cyan }}",
-			Details:  detailsTemplate,
-		}
+	templates := &promptui.SelectTemplates{
+		Label:    "{{ . }}?",
+		Active:   "\U0001F9CA {{ .Name | red }}",
+		Inactive: "  {{ .Name | cyan }}",
+		Selected: "\U0001F9CA {{ .Name | red | cyan }}",
+		Details:  detailsTemplate,
+	}
 
-		searcher := func(input string, index int) bool {
-			host := filteredHosts[index]
-			name := strings.Replace(strings.ToLower(host.Name), " ", "", -1)
-			input = strings.Replace(strings.ToLower(input), " ", "", -1)
+	searcher := func(input string, index int) bool {
+		host := filteredHosts[index]
+		name := strings.Replace(strings.ToLower(host.Name), " ", "", -1)
+		input = strings.Replace(strings.ToLower(input), " ", "", -1)
 
-			return strings.Contains(name, input)
-		}
+		return strings.Contains(name, input)
+	}
 
-		promptSize := 8
-		if len(filteredHosts) < promptSize {
-			promptSize = len(filteredHosts)
-		}
+	promptSize := 8
+	if len(filteredHosts) < promptSize {
+		promptSize = len(filteredHosts)
+	}
 
-		prompt := promptui.Select{
-			Label:     "Which host would you like to connect to?",
-			Items:     filteredHosts,
-			Templates: templates,
-			Size:      promptSize,
-			Searcher:  searcher,
-			Stdout:    &bellSkipper{},
-		}
+	prompt := promptui.Select{
+		Label:     "Which host would you like to connect to?",
+		Items:     filteredHosts,
+		Templates: templates,
+		Size:      promptSize,
+		Searcher:  searcher,
+		Stdout:    &bellSkipper{},
+	}
 
-		i, _, err := prompt.Run()
+	i, _, err := prompt.Run()
 
-		if err != nil {
-			fmt.Printf("Prompt failed %v\n", err)
-			return
-		}
+	if err != nil {
+		fmt.Printf("Prompt failed %v\n", err)
+		return
+	}
 
-		fmt.Printf("Connecting to host: %s\n", filteredHosts[i].Name)
-		connectToHost(boundaryPath, boundaryUrl, filteredHosts[i])
-	},
+	fmt.Printf("Connecting to host: %s\n", filteredHosts[i].Name)
+	connectToHost(boundaryPath, boundaryUrl, filteredHosts[i])
 }
 
 func connectToHost(boundaryPath, boundaryURL string, host *hosts.Host) {
@@ -226,7 +244,15 @@ func (bs *bellSkipper) Close() error {
 }
 
 func init() {
+	rootCmd.AddCommand(sshCmd)
 	rootCmd.AddCommand(loginCmd)
+
+	sshCmd.PersistentFlags().StringVar(
+		&sshUsername,
+		"ssh_username",
+		"root",
+		"Username used to connect with the server",
+	)
 
 	loginCmd.PersistentFlags().StringVar(
 		&sshUsername,

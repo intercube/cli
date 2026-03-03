@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/asaskevich/govalidator"
+	"github.com/intercube/cli/util"
 	"github.com/mitchellh/go-homedir"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -35,8 +35,8 @@ func runOnboarding() {
 	boundaryPath, boundaryErr := exec.LookPath("boundary")
 	boundaryInstalled := boundaryErr == nil
 
-	_, rsyncErr := os.Stat("/usr/local/bin/intercube-rsync")
-	syncHelperInstalled := rsyncErr == nil
+	rsyncPath, rsyncErr := exec.LookPath("rsync")
+	rsyncInstalled := rsyncErr == nil
 
 	fmt.Println("Intercube CLI onboarding")
 	fmt.Println()
@@ -45,13 +45,13 @@ func runOnboarding() {
 	if boundaryInstalled {
 		fmt.Printf("Boundary CLI: installed (%s)\n", boundaryPath)
 	} else {
-		fmt.Println("Boundary CLI: not found (required for `intercube login`)")
+		fmt.Println("Boundary CLI: not found (required for `intercube ssh`)")
 	}
 
-	if syncHelperInstalled {
-		fmt.Println("Sync helper: installed (/usr/local/bin/intercube-rsync)")
+	if rsyncInstalled {
+		fmt.Printf("rsync: installed (%s)\n", rsyncPath)
 	} else {
-		fmt.Println("Sync helper: not found (run `intercube install` when needed)")
+		fmt.Println("rsync: not found (required for `intercube sync --files`)")
 	}
 
 	fmt.Println()
@@ -142,39 +142,10 @@ func runOnboarding() {
 		return
 	}
 
-	remoteUser := viper.GetString("remote_user")
-	fromServer := viper.GetStringMapString("file_syncing")["from_server"]
-	filesPath := viper.GetStringMapString("file_syncing")["path"]
+	syncItems := config.Sync.Files.Items
 
 	if configureSyncDefaults {
-		remoteUser, err = promptText(
-			"Default sync remote user",
-			remoteUser,
-			optionalValue,
-			0,
-		)
-		if err != nil {
-			fmt.Printf("Onboarding cancelled: %v\n", err)
-			return
-		}
-
-		fromServer, err = promptText(
-			"Default sync source server",
-			fromServer,
-			optionalDNSValue,
-			0,
-		)
-		if err != nil {
-			fmt.Printf("Onboarding cancelled: %v\n", err)
-			return
-		}
-
-		filesPath, err = promptText(
-			"Default sync files path",
-			filesPath,
-			optionalValue,
-			0,
-		)
+		syncItems, err = promptSyncFileItems(syncItems)
 		if err != nil {
 			fmt.Printf("Onboarding cancelled: %v\n", err)
 			return
@@ -186,9 +157,7 @@ func runOnboarding() {
 	viper.Set("login.scope", scope)
 	viper.Set("login.auth_method", authMethod)
 	viper.Set("login.instance_url", instanceURL)
-	viper.Set("remote_user", remoteUser)
-	viper.Set("file_syncing.from_server", fromServer)
-	viper.Set("file_syncing.path", filesPath)
+	viper.Set("sync.files.items", toMapSlice(syncItems))
 
 	if err := writeOnboardingConfig(configPath); err != nil {
 		panic(err)
@@ -201,12 +170,14 @@ func runOnboarding() {
 	fmt.Println()
 	fmt.Printf("Saved configuration to %s\n", configPath)
 	fmt.Println("Next steps:")
-	fmt.Println("- Run `intercube login` to connect to a host")
+	fmt.Println("- Run `intercube ssh` to connect to a host")
+	fmt.Println("- Run `intercube auth login` to sign in for API calls")
+	fmt.Println("- Run `intercube auth status` to inspect local API session state")
 	if !boundaryInstalled {
 		fmt.Println("- Install Boundary CLI first: https://developer.hashicorp.com/boundary/downloads")
 	}
-	if !syncHelperInstalled {
-		fmt.Println("- Run `intercube install` if you need sync support")
+	if !rsyncInstalled {
+		fmt.Println("- Install rsync to enable `intercube sync --files`")
 	}
 }
 
@@ -330,75 +301,6 @@ func ensureLoginConfiguration() error {
 	return nil
 }
 
-func ensureSyncConfiguration(fromServer, filesPath, remoteUser string) (string, string, string, error) {
-	if strings.TrimSpace(fromServer) != "" && strings.TrimSpace(filesPath) != "" && strings.TrimSpace(remoteUser) != "" {
-		return fromServer, filesPath, remoteUser, nil
-	}
-
-	configPath, err := resolveOnboardingConfigPath()
-	if err != nil {
-		return "", "", "", err
-	}
-
-	fmt.Println("Sync configuration is missing. Let's set it up.")
-
-	prompted := false
-
-	if strings.TrimSpace(fromServer) == "" {
-		prompted = true
-		fromServer, err = promptText(
-			"Sync source server",
-			viper.GetStringMapString("file_syncing")["from_server"],
-			requiredDNSValue,
-			0,
-		)
-		if err != nil {
-			return "", "", "", err
-		}
-	}
-
-	if strings.TrimSpace(filesPath) == "" {
-		prompted = true
-		filesPath, err = promptText(
-			"Sync files path",
-			viper.GetStringMapString("file_syncing")["path"],
-			requiredValue,
-			0,
-		)
-		if err != nil {
-			return "", "", "", err
-		}
-	}
-
-	if strings.TrimSpace(remoteUser) == "" {
-		prompted = true
-		remoteUser, err = promptText(
-			"Sync remote user",
-			viper.GetString("remote_user"),
-			requiredValue,
-			0,
-		)
-		if err != nil {
-			return "", "", "", err
-		}
-	}
-
-	if prompted {
-		viper.Set("file_syncing.from_server", fromServer)
-		viper.Set("file_syncing.path", filesPath)
-		viper.Set("remote_user", remoteUser)
-
-		if err := saveConfigAndReload(configPath); err != nil {
-			return "", "", "", err
-		}
-
-		fmt.Printf("Saved sync configuration to %s\n", configPath)
-		fmt.Println()
-	}
-
-	return fromServer, filesPath, remoteUser, nil
-}
-
 func ensureMappingsConfiguration() error {
 	if len(config.Mappings) > 0 {
 		return nil
@@ -447,6 +349,52 @@ func ensureMappingsConfiguration() error {
 	fmt.Println()
 
 	return nil
+}
+
+func promptSyncFileItems(current []util.SyncFileItem) ([]util.SyncFileItem, error) {
+	items := make([]util.SyncFileItem, 0, len(current))
+	items = append(items, current...)
+
+	if len(items) > 0 {
+		keepExisting, err := chooseYesNo("Keep existing sync file mappings?")
+		if err != nil {
+			return nil, err
+		}
+
+		if !keepExisting {
+			items = []util.SyncFileItem{}
+		}
+	}
+
+	for {
+		source, err := promptText("Sync source path", "", requiredValue, 0)
+		if err != nil {
+			return nil, err
+		}
+
+		target, err := promptText("Sync target path", source, requiredValue, 0)
+		if err != nil {
+			return nil, err
+		}
+
+		excludeRaw, err := promptText("Exclude patterns (comma-separated, optional)", "", optionalValue, 0)
+		if err != nil {
+			return nil, err
+		}
+
+		items = append(items, util.SyncFileItem{Source: source, Target: target, Exclude: splitCSV(excludeRaw)})
+
+		addAnother, err := chooseYesNo("Add another sync mapping?")
+		if err != nil {
+			return nil, err
+		}
+
+		if !addAnother {
+			break
+		}
+	}
+
+	return items, nil
 }
 
 func saveConfigAndReload(configPath string) error {
@@ -550,30 +498,6 @@ func requiredValue(input string) error {
 }
 
 func optionalValue(_ string) error {
-	return nil
-}
-
-func optionalDNSValue(input string) error {
-	if strings.TrimSpace(input) == "" {
-		return nil
-	}
-
-	if !govalidator.IsDNSName(input) {
-		return errors.New("provide a valid hostname")
-	}
-
-	return nil
-}
-
-func requiredDNSValue(input string) error {
-	if strings.TrimSpace(input) == "" {
-		return errors.New("value is required")
-	}
-
-	if !govalidator.IsDNSName(input) {
-		return errors.New("provide a valid hostname")
-	}
-
 	return nil
 }
 
