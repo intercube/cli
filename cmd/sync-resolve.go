@@ -141,13 +141,6 @@ func selectSiteFromList(sites []inventory.SiteServer) (*inventory.SiteServer, er
 		return &sites[0], nil
 	}
 
-	templates := &promptui.SelectTemplates{
-		Label:    "{{ . }}?",
-		Active:   "\U0001F9CA {{ . | red }}",
-		Inactive: "  {{ . | cyan }}",
-		Selected: "\U0001F9CA {{ . | cyan }}",
-	}
-
 	labels := make([]string, 0, len(sites))
 	for _, site := range sites {
 		labels = append(labels, syncSiteDisplayName(site))
@@ -156,8 +149,8 @@ func selectSiteFromList(sites []inventory.SiteServer) (*inventory.SiteServer, er
 	prompt := promptui.Select{
 		Label:     "Select target site",
 		Items:     labels,
-		Templates: templates,
-		Size:      minInt(10, len(labels)),
+		Templates: simpleSelectTemplates("target site"),
+		Size:      selectSize(len(labels)),
 		Stdout:    &bellSkipper{},
 	}
 
@@ -170,30 +163,34 @@ func selectSiteFromList(sites []inventory.SiteServer) (*inventory.SiteServer, er
 }
 
 func syncSiteDisplayName(site inventory.SiteServer) string {
-	parts := make([]string, 0, 3)
-	if strings.TrimSpace(site.MainDomain) != "" {
-		parts = append(parts, strings.TrimSpace(site.MainDomain))
-	}
-	if strings.TrimSpace(site.ServerName) != "" {
-		parts = append(parts, strings.TrimSpace(site.ServerName))
-	}
-	if strings.TrimSpace(site.ID) != "" {
-		parts = append(parts, strings.TrimSpace(site.ID))
-	}
+	domain := strings.TrimSpace(site.MainDomain)
+	username := strings.TrimSpace(site.Username)
+	server := strings.TrimSpace(site.ServerName)
 
-	if len(parts) == 0 {
+	title := domain
+	if title == "" {
+		title = username
+	}
+	if title == "" {
+		title = server
+	}
+	if title == "" {
 		return "(unnamed site)"
 	}
 
-	return strings.Join(parts, " | ")
-}
-
-func minInt(a, b int) int {
-	if a < b {
-		return a
+	metaParts := make([]string, 0, 2)
+	if username != "" && !strings.EqualFold(username, title) {
+		metaParts = append(metaParts, username)
+	}
+	if server != "" && !strings.EqualFold(server, title) && !strings.EqualFold(server, username) {
+		metaParts = append(metaParts, server)
 	}
 
-	return b
+	if len(metaParts) == 0 {
+		return title
+	}
+
+	return title + " - " + strings.Join(metaParts, " | ")
 }
 
 func findSiteMatches(sites []inventory.SiteServer, value string) []*inventory.SiteServer {

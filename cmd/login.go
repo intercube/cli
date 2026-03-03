@@ -169,9 +169,9 @@ func runBoundarySSH(args []string, fromDeprecatedLogin bool) {
 
 	templates := &promptui.SelectTemplates{
 		Label:    "{{ . }}?",
-		Active:   "\U0001F9CA {{ .Name | red }}",
-		Inactive: "  {{ .Name | cyan }}",
-		Selected: "\U0001F9CA {{ .Name | red | cyan }}",
+		Active:   "> {{ .Name | cyan }}",
+		Inactive: "  {{ .Name }}",
+		Selected: "Selected host: {{ .Name | cyan }}",
 		Details:  detailsTemplate,
 	}
 
@@ -183,16 +183,11 @@ func runBoundarySSH(args []string, fromDeprecatedLogin bool) {
 		return strings.Contains(name, input)
 	}
 
-	promptSize := 8
-	if len(filteredHosts) < promptSize {
-		promptSize = len(filteredHosts)
-	}
-
 	prompt := promptui.Select{
 		Label:     "Which host would you like to connect to?",
 		Items:     filteredHosts,
 		Templates: templates,
-		Size:      promptSize,
+		Size:      selectSize(len(filteredHosts)),
 		Searcher:  searcher,
 		Stdout:    &bellSkipper{},
 	}
@@ -240,7 +235,7 @@ func (bs *bellSkipper) Write(b []byte) (int, error) {
 
 // Close implements an io.WriterCloser over os.Stderr.
 func (bs *bellSkipper) Close() error {
-	return os.Stderr.Close()
+	return nil
 }
 
 func init() {

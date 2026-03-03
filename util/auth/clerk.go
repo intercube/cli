@@ -289,7 +289,7 @@ func (c *ClerkClient) buildAuthURL(endpoint, redirectURI, state, challenge strin
 func (c *ClerkClient) scopeString() string {
 	scopes := strings.TrimSpace(c.Scopes)
 	if scopes == "" {
-		return "openid profile email offline_access"
+		return "openid profile email offline_access public_metadata"
 	}
 
 	return scopes

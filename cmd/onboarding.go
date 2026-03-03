@@ -443,10 +443,11 @@ func writeOnboardingConfig(path string) error {
 func chooseYesNo(label string) (bool, error) {
 	items := []string{"Yes", "No"}
 	prompt := promptui.Select{
-		Label:  label,
-		Items:  items,
-		Size:   len(items),
-		Stdout: &bellSkipper{},
+		Label:     label,
+		Items:     items,
+		Size:      selectSize(len(items)),
+		Stdout:    &bellSkipper{},
+		Templates: simpleSelectTemplates("option"),
 	}
 
 	index, _, err := prompt.Run()
