@@ -33,10 +33,6 @@ func TestDetectRuntimeCIPipeline(t *testing.T) {
 }
 
 func TestDetectRuntimeRepository(t *testing.T) {
-	if _, err := os.Stat(defaultServerConfigPath); err == nil {
-		t.Skip("server config present on this machine; repository detection order differs")
-	}
-
 	t.Setenv("CI", "")
 	t.Setenv("INTERCUBE_NON_INTERACTIVE", "")
 

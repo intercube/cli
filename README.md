@@ -71,7 +71,6 @@ context:
   org_id: org_xxx
   site_id: "58"
   server_id: "42"
-  environment: production
 
 behavior:
   non_interactive: false
@@ -80,13 +79,12 @@ behavior:
 Config scopes:
 - user: `~/.intercube.yaml`
 - repository: `<repo>/.intercube.yaml`
-- server: `/etc/intercube.yaml`
+- server: `~/.intercube.yaml` (same user-level config, used when `--context server` is selected)
 
 Environment overrides:
 - `INTERCUBE_ORG_ID` (preferred) and `INTERCUBE_ORGANIZATION_ID` (legacy)
 - `INTERCUBE_SITE_ID`
 - `INTERCUBE_SERVER_ID`
-- `INTERCUBE_ENVIRONMENT`
 - `INTERCUBE_NON_INTERACTIVE`
 
 In non-interactive mode, commands fail instead of prompting when required values are missing.

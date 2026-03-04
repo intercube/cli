@@ -63,7 +63,6 @@ func initConfig() {
 	viper.BindEnv("context.org_id", "INTERCUBE_ORG_ID", "INTERCUBE_ORGANIZATION_ID")
 	viper.BindEnv("context.site_id", "INTERCUBE_SITE_ID")
 	viper.BindEnv("context.server_id", "INTERCUBE_SERVER_ID")
-	viper.BindEnv("context.environment", "INTERCUBE_ENVIRONMENT")
 	viper.AutomaticEnv()
 
 	workingDir, _ := os.Getwd()

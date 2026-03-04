@@ -161,7 +161,6 @@ func runOnboarding() {
 	contextOrgID := strings.TrimSpace(config.Context.OrgID)
 	contextSiteID := strings.TrimSpace(config.Context.SiteID)
 	contextServerID := strings.TrimSpace(config.Context.ServerID)
-	contextEnvironment := strings.TrimSpace(config.Context.Environment)
 	contextNonInteractive := config.Behavior.NonInteractive
 
 	if configureContextDefaults {
@@ -183,12 +182,6 @@ func runOnboarding() {
 			return
 		}
 
-		contextEnvironment, err = promptText("Default environment (optional)", contextEnvironment, optionalValue, 0)
-		if err != nil {
-			fmt.Printf("Onboarding cancelled: %v\n", err)
-			return
-		}
-
 		contextNonInteractive, err = chooseYesNo("Force non-interactive mode by default?")
 		if err != nil {
 			fmt.Printf("Onboarding cancelled: %v\n", err)
@@ -205,7 +198,6 @@ func runOnboarding() {
 	viper.Set("context.org_id", contextOrgID)
 	viper.Set("context.site_id", contextSiteID)
 	viper.Set("context.server_id", contextServerID)
-	viper.Set("context.environment", contextEnvironment)
 	viper.Set("behavior.non_interactive", contextNonInteractive)
 
 	if err := writeOnboardingConfig(configPath); err != nil {

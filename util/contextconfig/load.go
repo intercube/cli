@@ -29,6 +29,10 @@ func LoadLayeredConfig(v *viper.Viper, runtime Runtime, explicitConfigPath strin
 		activePath = strings.TrimSpace(runtime.ActiveConfigPath)
 	}
 
+	if activePath != "" && activePath == strings.TrimSpace(runtime.UserConfigPath) {
+		return LoadResult{LoadedPaths: loaded}, nil
+	}
+
 	if settings, path, err := readSettings(activePath); err != nil {
 		return LoadResult{}, err
 	} else if settings != nil {

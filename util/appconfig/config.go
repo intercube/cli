@@ -16,7 +16,6 @@ var InventoryAPIBaseURL = "https://inventory-nexus.dev-c8s.intercube.dev/"
 var OrganizationID = ""
 var SiteID = ""
 var ServerID = ""
-var Environment = ""
 
 const (
 	EnvClerkIssuer       = "INTERCUBE_AUTH_CLERK_ISSUER"
@@ -29,7 +28,6 @@ const (
 	EnvOrganizationIDAlt = "INTERCUBE_ORG_ID"
 	EnvSiteID            = "INTERCUBE_SITE_ID"
 	EnvServerID          = "INTERCUBE_SERVER_ID"
-	EnvEnvironment       = "INTERCUBE_ENVIRONMENT"
 )
 
 func LoadFromEnv() {
@@ -69,10 +67,6 @@ func LoadFromEnv() {
 
 	if value := strings.TrimSpace(os.Getenv(EnvServerID)); value != "" {
 		ServerID = value
-	}
-
-	if value := strings.TrimSpace(os.Getenv(EnvEnvironment)); value != "" {
-		Environment = value
 	}
 }
 

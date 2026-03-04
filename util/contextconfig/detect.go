@@ -14,8 +14,7 @@ const (
 	ContextRepository Kind = "repository"
 	ContextGlobal     Kind = "global"
 
-	defaultServerConfigPath = "/etc/intercube.yaml"
-	defaultUserConfigName   = ".intercube.yaml"
+	defaultUserConfigName = ".intercube.yaml"
 )
 
 type Runtime struct {
@@ -54,13 +53,6 @@ func DetectRuntime(explicitContext string, workingDir string) Runtime {
 		return runtime
 	}
 
-	if fileExists(defaultServerConfigPath) {
-		runtime.Kind = ContextServer
-		populatePaths(&runtime)
-		runtime.NonInteractive = computeNonInteractive(runtime.Kind)
-		return runtime
-	}
-
 	repoRoot := findRepositoryConfigRoot(runtime.WorkingDir)
 	if repoRoot != "" {
 		runtime.Kind = ContextRepository
@@ -93,7 +85,7 @@ func parseKind(value string) (Kind, bool) {
 func populatePaths(runtime *Runtime) {
 	switch runtime.Kind {
 	case ContextServer:
-		runtime.ActiveConfigPath = defaultServerConfigPath
+		runtime.ActiveConfigPath = runtime.UserConfigPath
 	case ContextRepository:
 		repoRoot := runtime.RepositoryRoot
 		if repoRoot == "" {

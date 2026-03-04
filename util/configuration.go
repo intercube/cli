@@ -10,10 +10,9 @@ type Configuration struct {
 }
 
 type ContextDefaults struct {
-	OrgID       string `mapstructure:"org_id"`
-	SiteID      string `mapstructure:"site_id"`
-	ServerID    string `mapstructure:"server_id"`
-	Environment string `mapstructure:"environment"`
+	OrgID    string `mapstructure:"org_id"`
+	SiteID   string `mapstructure:"site_id"`
+	ServerID string `mapstructure:"server_id"`
 }
 
 type Behavior struct {
