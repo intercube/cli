@@ -68,6 +68,14 @@ func ensureFileSyncItems(settings *SyncSettings) ([]util.SyncFileItem, error) {
 		return settings.Files.Items, nil
 	}
 
+	if isNonInteractiveMode() {
+		return nil, fmt.Errorf("sync.files.items is required in non-interactive mode")
+	}
+
+	if err := ensureInteractiveMode("sync file mapping setup"); err != nil {
+		return nil, err
+	}
+
 	fmt.Println("No file sync paths configured yet. Let's add them now.")
 
 	items := make([]util.SyncFileItem, 0, 1)

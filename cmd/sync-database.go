@@ -25,6 +25,10 @@ type mysqlSyncConfig struct {
 }
 
 func runDatabaseSync(cmd *cobra.Command, target ResolvedSyncTarget, _ *SyncSettings, dryRun bool, autoApprove bool) error {
+	if isNonInteractiveMode() {
+		return fmt.Errorf("database sync requires interactive prompts in current implementation; run with an interactive terminal")
+	}
+
 	if err := ensureCommandAvailable("mysqldump"); err != nil {
 		return err
 	}

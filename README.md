@@ -46,3 +46,47 @@ Behavior:
 - argument auto-resolves against site ID/domain/server/user when possible
 - stores only file path mappings in config (`sync.files.items`)
 - database details are requested interactively for each run (not persisted)
+
+### Context-aware defaults
+
+The CLI resolves defaults using context detection and a fixed precedence.
+
+Context detection order:
+1. `--context` / `INTERCUBE_CONTEXT` (`pipeline`, `server`, `repository`, `global`)
+2. `CI=true` -> pipeline mode
+3. server config at `/etc/intercube.yaml` -> server mode
+4. nearest repo containing `.intercube.yaml` -> repository mode
+5. fallback -> global mode
+
+Resolution precedence:
+1. command flags
+2. environment variables
+3. active context config
+4. user defaults
+
+Supported default keys:
+
+```yaml
+context:
+  org_id: org_xxx
+  site_id: "58"
+  server_id: "42"
+  environment: production
+
+behavior:
+  non_interactive: false
+```
+
+Config scopes:
+- user: `~/.intercube.yaml`
+- repository: `<repo>/.intercube.yaml`
+- server: `/etc/intercube.yaml`
+
+Environment overrides:
+- `INTERCUBE_ORG_ID` (preferred) and `INTERCUBE_ORGANIZATION_ID` (legacy)
+- `INTERCUBE_SITE_ID`
+- `INTERCUBE_SERVER_ID`
+- `INTERCUBE_ENVIRONMENT`
+- `INTERCUBE_NON_INTERACTIVE`
+
+In non-interactive mode, commands fail instead of prompting when required values are missing.

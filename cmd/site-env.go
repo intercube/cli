@@ -317,6 +317,10 @@ func selectEnvironmentVariable(variables []inventory.EnvironmentVariable) (*inve
 }
 
 func promptRequiredText(label, defaultValue string) (string, error) {
+	if err := ensureInteractiveMode(label); err != nil {
+		return "", err
+	}
+
 	prompt := promptui.Prompt{
 		Label:   label,
 		Default: defaultValue,
@@ -339,6 +343,10 @@ func promptRequiredText(label, defaultValue string) (string, error) {
 }
 
 func promptYesNo(label string) (bool, error) {
+	if err := ensureInteractiveMode(label); err != nil {
+		return false, err
+	}
+
 	prompt := promptui.Select{
 		Label:     label,
 		Items:     []string{"Yes", "No"},

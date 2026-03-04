@@ -32,6 +32,10 @@ var mapCmd = &cobra.Command{
 	Use:   "map",
 	Short: "Maps files based on config yaml file",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if interactiveMapSetup && isNonInteractiveMode() {
+			return fmt.Errorf("--interactive is not allowed in non-interactive context")
+		}
+
 		if len(config.Mappings) == 0 {
 			if !interactiveMapSetup {
 				return fmt.Errorf("no mappings configured. set `mappings` in config or run `intercube onboarding` interactively")

@@ -26,16 +26,9 @@ func newInventoryClient(cmd *cobra.Command, organizationOverride string) (*inven
 		return nil, "", err
 	}
 
-	organizationID := strings.TrimSpace(organizationOverride)
-	if organizationID == "" {
-		session, sessionErr := store.Load(cmd.Context())
-		if sessionErr == nil {
-			organizationID = strings.TrimSpace(session.OrganizationID)
-		}
-	}
-
-	if organizationID == "" {
-		organizationID = strings.TrimSpace(appconfig.OrganizationID)
+	organizationID, _, err := resolveOrganizationID(cmd, organizationOverride)
+	if err != nil {
+		return nil, "", err
 	}
 
 	clerkClient := &authutil.ClerkClient{

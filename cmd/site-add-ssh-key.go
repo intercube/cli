@@ -1,15 +1,12 @@
 package cmd
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
 
-	"github.com/intercube/cli/util/appconfig"
-	authutil "github.com/intercube/cli/util/auth"
 	"github.com/intercube/cli/util/inventory"
 	"github.com/manifoldco/promptui"
 	"github.com/spf13/cobra"
@@ -23,60 +20,18 @@ type localPublicKey struct {
 }
 
 var siteOrgID string
+var siteAddSSHKeySiteID string
 
 var siteAddSSHKeyCmd = &cobra.Command{
 	Use:   "add-ssh-key",
 	Short: "Add one of your local SSH public keys to a site",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if err := appconfig.ValidateClerk(); err != nil {
-			return fmt.Errorf("%w (set via env/.env or build-time)", err)
-		}
-
-		if err := appconfig.ValidateInventory(); err != nil {
-			return fmt.Errorf("%w (set via env/.env or build-time)", err)
-		}
-
-		store, err := authutil.NewSessionStore("intercube-cli")
+		inventoryClient, _, err := newInventoryClient(cmd, siteOrgID)
 		if err != nil {
 			return err
 		}
 
-		clerkClient := &authutil.ClerkClient{
-			Issuer:       appconfig.ClerkIssuer,
-			ClientID:     appconfig.ClerkClientID,
-			Audience:     appconfig.ClerkAudience,
-			Scopes:       appconfig.ClerkScopes,
-			CallbackPort: appconfig.ParsedCallbackPort(),
-		}
-
-		organizationID := strings.TrimSpace(siteOrgID)
-		if organizationID == "" {
-			session, sessionErr := store.Load(cmd.Context())
-			if sessionErr == nil {
-				organizationID = strings.TrimSpace(session.OrganizationID)
-			}
-		}
-
-		if organizationID == "" {
-			organizationID = strings.TrimSpace(appconfig.OrganizationID)
-		}
-
-		inventoryClient := inventory.NewClient(appconfig.InventoryAPIBaseURL, organizationID, store, clerkClient)
-
-		sites, err := inventoryClient.ListSites(cmd.Context())
-		if err != nil {
-			if shouldPromptForOrganization(err) {
-				return errors.New("organization context is required. Run `intercube auth org` (or pass --org-id)")
-			}
-
-			return err
-		}
-
-		if len(sites) == 0 {
-			return fmt.Errorf("no sites available for your account")
-		}
-
-		selectedSite, err := selectSite(sites)
+		selectedSite, err := resolveSiteSelection(cmd, inventoryClient, siteAddSSHKeySiteID)
 		if err != nil {
 			return err
 		}
@@ -145,6 +100,7 @@ var siteAddSSHKeyCmd = &cobra.Command{
 func init() {
 	siteCmd.AddCommand(siteAddSSHKeyCmd)
 	siteAddSSHKeyCmd.Flags().StringVar(&siteOrgID, "org-id", "", "organization id (sets X-Organization-Id for inventory requests)")
+	siteAddSSHKeyCmd.Flags().StringVar(&siteAddSSHKeySiteID, "site-id", "", "site id")
 }
 
 func selectSite(sites []inventory.SiteServer) (*inventory.SiteServer, error) {

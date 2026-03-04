@@ -54,7 +54,7 @@ func runAuthOrgSelect(cmd *cobra.Command, args []string, forcePrompt bool) error
 	}
 
 	if forcePrompt || orgID == "" {
-		orgID, err = selectOrPromptOrgID(session.OrganizationID, appconfig.OrganizationID, session.KnownOrgIDs, organizations, forcePrompt)
+		orgID, err = selectOrPromptOrgID(session.OrganizationID, contextOrgDefault(), session.KnownOrgIDs, organizations, forcePrompt)
 		if err != nil {
 			return err
 		}
