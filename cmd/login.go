@@ -29,6 +29,7 @@ import (
 	"os"
 	"os/exec"
 	"sort"
+	"strings"
 )
 
 var sshUsername = "root"
@@ -136,6 +137,7 @@ func runBoundarySSH(cmd *cobra.Command, args []string, fromDeprecatedLogin bool)
 
 		hostsList = append(hostsList, hostsResult.Items...)
 	}
+	hostsList = dedupeBoundaryHosts(hostsList)
 
 	if len(hostsList) == 0 {
 		fmt.Println("No Boundary hosts available")
@@ -185,9 +187,12 @@ func runBoundarySSH(cmd *cobra.Command, args []string, fromDeprecatedLogin bool)
 {{ "Server:" | faint }}	{{ .ServerName }}
 {{ "Boundary host:" | faint }}	{{ .HostName }}
 {{ "Host ID:" | faint }}	{{ .HostID }}
-{{ "Sites:" | faint }}	{{ .SitePreview }}
+`
+	if sshLoadSites {
+		detailsTemplate += `{{ "Sites:" | faint }}	{{ .SitePreview }}
 {{ "Metadata:" | faint }}	{{ .JoinStatus }}
 `
+	}
 
 	templates := &promptui.SelectTemplates{
 		Label:    "{{ . }}",
@@ -244,6 +249,33 @@ func connectToHost(boundaryPath, boundaryURL string, host *hosts.Host) {
 	command.Stdout = os.Stdout
 	command.Stderr = os.Stderr
 	_ = command.Run()
+}
+
+func dedupeBoundaryHosts(hostsList []*hosts.Host) []*hosts.Host {
+	if len(hostsList) < 2 {
+		return hostsList
+	}
+
+	result := make([]*hosts.Host, 0, len(hostsList))
+	seen := make(map[string]struct{}, len(hostsList))
+	for _, host := range hostsList {
+		key := strings.TrimSpace(host.Id)
+		if key == "" {
+			key = strings.ToLower(strings.TrimSpace(host.Name))
+		}
+		if key == "" {
+			key = fmt.Sprintf("fallback-%d", len(result))
+		}
+
+		if _, exists := seen[key]; exists {
+			continue
+		}
+
+		seen[key] = struct{}{}
+		result = append(result, host)
+	}
+
+	return result
 }
 
 type bellSkipper struct{}

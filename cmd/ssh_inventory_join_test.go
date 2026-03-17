@@ -56,6 +56,13 @@ func TestSummarizeSiteLabelsTruncates(t *testing.T) {
 	}
 }
 
+func TestBuildMetaLabelAvoidsDuplicateTitle(t *testing.T) {
+	label := buildMetaLabel("api.beta.intercube.dev", []string{"api.beta.intercube.dev", "shop.example.com"})
+	if label != "2 sites" {
+		t.Fatalf("expected aggregated site count label, got %q", label)
+	}
+}
+
 func TestBuildSSHTargetOptionsKeepsBoundaryOnlyHosts(t *testing.T) {
 	hostsList := []*hosts.Host{{Id: "h-1", Name: "unmatched.intercube.cloud"}}
 
@@ -69,7 +76,7 @@ func TestBuildSSHTargetOptionsKeepsBoundaryOnlyHosts(t *testing.T) {
 		t.Fatalf("expected boundary_only, got %q", option.JoinStatus)
 	}
 
-	if option.Meta != "boundary only" {
-		t.Fatalf("expected boundary only meta, got %q", option.Meta)
+	if option.Meta != "" {
+		t.Fatalf("expected empty meta for boundary-only host, got %q", option.Meta)
 	}
 }

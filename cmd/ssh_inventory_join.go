@@ -80,14 +80,11 @@ func buildSSHTargetOptions(hostsList []*hosts.Host, sites []inventory.SiteServer
 			title = "(unnamed host)"
 		}
 
-		meta := "boundary only"
+		meta := ""
 		sitePreview := "-"
 		joinStatus := "boundary_only"
 		if len(siteLabels) > 0 {
-			meta = siteLabels[0]
-			if len(siteLabels) > 1 {
-				meta = fmt.Sprintf("%s (+%d more)", siteLabels[0], len(siteLabels)-1)
-			}
+			meta = buildMetaLabel(title, siteLabels)
 			sitePreview = summarizeSiteLabels(siteLabels, 5)
 			joinStatus = "inventory_enriched"
 		}
@@ -280,4 +277,25 @@ func summarizeSiteLabels(labels []string, max int) string {
 
 	visible := strings.Join(labels[:max], ", ")
 	return fmt.Sprintf("%s (+%d more)", visible, len(labels)-max)
+}
+
+func buildMetaLabel(title string, siteLabels []string) string {
+	if len(siteLabels) == 0 {
+		return ""
+	}
+
+	primary := siteLabels[0]
+	if len(siteLabels) == 1 {
+		if strings.EqualFold(strings.TrimSpace(primary), strings.TrimSpace(title)) {
+			return ""
+		}
+
+		return primary
+	}
+
+	if strings.EqualFold(strings.TrimSpace(primary), strings.TrimSpace(title)) {
+		return fmt.Sprintf("%d sites", len(siteLabels))
+	}
+
+	return fmt.Sprintf("%s (+%d more)", primary, len(siteLabels)-1)
 }
