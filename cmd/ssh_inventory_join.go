@@ -102,8 +102,7 @@ func buildSSHTargetOptions(hostsList []*hosts.Host, sites []inventory.SiteServer
 		})
 	}
 
-	sortSSHTargetsByTitle(options)
-	return options
+	return dedupeSSHTargetOptions(options)
 }
 
 func buildSearchFieldsForTarget(host *hosts.Host, associatedSites []inventory.SiteServer, siteLabels []string, serverName string) []string {
@@ -298,4 +297,52 @@ func buildMetaLabel(title string, siteLabels []string) string {
 	}
 
 	return fmt.Sprintf("%s (+%d more)", primary, len(siteLabels)-1)
+}
+
+func dedupeSSHTargetOptions(options []sshTargetOption) []sshTargetOption {
+	if len(options) < 2 {
+		sortSSHTargetsByTitle(options)
+		return options
+	}
+
+	indexByKey := make(map[string]int, len(options))
+	result := make([]sshTargetOption, 0, len(options))
+	for _, option := range options {
+		key := strings.ToLower(strings.TrimSpace(option.HostName))
+		if key == "" {
+			key = strings.ToLower(strings.TrimSpace(option.Title))
+		}
+		if key == "" {
+			key = strings.ToLower(strings.TrimSpace(option.HostID))
+		}
+		if key == "" {
+			result = append(result, option)
+			continue
+		}
+
+		if index, exists := indexByKey[key]; exists {
+			if shouldReplaceSSHTargetOption(result[index], option) {
+				result[index] = option
+			}
+			continue
+		}
+
+		indexByKey[key] = len(result)
+		result = append(result, option)
+	}
+
+	sortSSHTargetsByTitle(result)
+	return result
+}
+
+func shouldReplaceSSHTargetOption(current sshTargetOption, candidate sshTargetOption) bool {
+	if current.JoinStatus != candidate.JoinStatus {
+		return candidate.JoinStatus == "inventory_enriched"
+	}
+
+	if len(candidate.SitePreview) > len(current.SitePreview) {
+		return true
+	}
+
+	return false
 }

@@ -80,3 +80,18 @@ func TestBuildSSHTargetOptionsKeepsBoundaryOnlyHosts(t *testing.T) {
 		t.Fatalf("expected empty meta for boundary-only host, got %q", option.Meta)
 	}
 }
+
+func TestBuildSSHTargetOptionsDedupesSameHostName(t *testing.T) {
+	hostsList := []*hosts.Host{
+		{Id: "h-1", Name: "api.beta.intercube.dev"},
+		{Id: "h-2", Name: "api.beta.intercube.dev"},
+		{Id: "h-3", Name: "other.intercube.dev"},
+	}
+
+	sites := []inventory.SiteServer{{ID: "s-1", MainDomain: "api.beta.intercube.dev", ServerName: "api.beta.intercube.dev"}}
+
+	options := buildSSHTargetOptions(hostsList, sites)
+	if len(options) != 2 {
+		t.Fatalf("expected 2 deduped options, got %d", len(options))
+	}
+}

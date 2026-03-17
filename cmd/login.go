@@ -284,7 +284,7 @@ type bellSkipper struct{}
 func (bs *bellSkipper) Write(b []byte) (int, error) {
 	const charBell = 7 // c.f. readline.CharBell
 	if len(b) == 1 && b[0] == charBell {
-		return 0, nil
+		return 1, nil
 	}
 	return os.Stderr.Write(b)
 }
