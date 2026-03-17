@@ -41,18 +41,34 @@ func buildSSHTargetOptions(hostsList []*hosts.Host, sites []inventory.SiteServer
 		return nil
 	}
 
-	hostIndexByJoinKey := make(map[string][]int, len(hostsList)*2)
+	hostIndexByExactKey := make(map[string][]int, len(hostsList))
+	hostIndexByShortKey := make(map[string][]int, len(hostsList))
 	for i, host := range hostsList {
-		for _, key := range sshJoinKeys(host.Name) {
-			hostIndexByJoinKey[key] = appendUniqueHostIndex(hostIndexByJoinKey[key], i)
+		exactKey := sshJoinKey(host.Name)
+		if exactKey != "" {
+			hostIndexByExactKey[exactKey] = appendUniqueHostIndex(hostIndexByExactKey[exactKey], i)
+		}
+
+		shortKey := sshJoinShortKey(host.Name)
+		if shortKey != "" && shortKey != exactKey {
+			hostIndexByShortKey[shortKey] = appendUniqueHostIndex(hostIndexByShortKey[shortKey], i)
 		}
 	}
 
 	sitesByHostIndex := make(map[int][]inventory.SiteServer)
 	for _, site := range sites {
 		matchedHostIndexes := make(map[int]struct{})
-		for _, key := range sshJoinKeys(site.ServerName) {
-			for _, hostIndex := range hostIndexByJoinKey[key] {
+
+		exactServerKey := sshJoinKey(site.ServerName)
+		for _, hostIndex := range hostIndexByExactKey[exactServerKey] {
+			matchedHostIndexes[hostIndex] = struct{}{}
+		}
+
+		if len(matchedHostIndexes) == 0 {
+			shortServerKey := sshJoinShortKey(site.ServerName)
+			shortCandidates := hostIndexByShortKey[shortServerKey]
+			if len(shortCandidates) == 1 {
+				hostIndex := shortCandidates[0]
 				matchedHostIndexes[hostIndex] = struct{}{}
 			}
 		}

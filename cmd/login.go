@@ -75,6 +75,22 @@ func runBoundarySSH(cmd *cobra.Command, args []string, fromDeprecatedLogin bool)
 		panic("Boundary is not installed. Download and install Boundary before using `intercube ssh` (https://learn.hashicorp.com/tutorials/boundary/getting-started-install)")
 	}
 
+	type inventoryFetchResult struct {
+		sites []inventory.SiteServer
+		err   error
+	}
+
+	var inventoryResults <-chan inventoryFetchResult
+	if sshLoadSites {
+		resultChannel := make(chan inventoryFetchResult, 1)
+		inventoryResults = resultChannel
+
+		go func() {
+			sites, fetchErr := fetchInventorySites(cmd)
+			resultChannel <- inventoryFetchResult{sites: sites, err: fetchErr}
+		}()
+	}
+
 	apiConfig, _ := api.DefaultConfig()
 	apiConfig.Addr = boundaryUrl
 
@@ -149,9 +165,10 @@ func runBoundarySSH(cmd *cobra.Command, args []string, fromDeprecatedLogin bool)
 	})
 
 	var sites []inventory.SiteServer
-	if sshLoadSites {
-		var inventoryErr error
-		sites, inventoryErr = fetchInventorySites(cmd)
+	if inventoryResults != nil {
+		inventoryResult := <-inventoryResults
+		sites = inventoryResult.sites
+		inventoryErr := inventoryResult.err
 		if inventoryErr != nil {
 			fmt.Println("Inventory metadata unavailable; searching Boundary host names only.")
 			if Verbose {

@@ -95,3 +95,30 @@ func TestBuildSSHTargetOptionsDedupesSameHostName(t *testing.T) {
 		t.Fatalf("expected 2 deduped options, got %d", len(options))
 	}
 }
+
+func TestBuildSSHTargetOptionsAvoidsAmbiguousShortNameJoin(t *testing.T) {
+	hostsList := []*hosts.Host{
+		{Id: "h-1", Name: "api.beta.intercube.dev"},
+		{Id: "h-2", Name: "api.sguk.over-site.uk"},
+	}
+
+	sites := []inventory.SiteServer{{ID: "s-1", MainDomain: "api.beta.intercube.dev", ServerName: "api.beta.intercube.dev"}}
+
+	options := buildSSHTargetOptions(hostsList, sites)
+	if len(options) != 2 {
+		t.Fatalf("expected 2 options, got %d", len(options))
+	}
+
+	joined := map[string]string{}
+	for _, option := range options {
+		joined[option.HostID] = option.JoinStatus
+	}
+
+	if joined["h-1"] != "inventory_enriched" {
+		t.Fatalf("expected h-1 to be enriched, got %q", joined["h-1"])
+	}
+
+	if joined["h-2"] != "boundary_only" {
+		t.Fatalf("expected h-2 to stay boundary-only, got %q", joined["h-2"])
+	}
+}
