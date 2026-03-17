@@ -23,6 +23,7 @@ import (
 	"github.com/hashicorp/boundary/api/hostcatalogs"
 	"github.com/hashicorp/boundary/api/hosts"
 	"github.com/hashicorp/boundary/api/scopes"
+	"github.com/intercube/cli/util/inventory"
 	"github.com/manifoldco/promptui"
 	"github.com/spf13/cobra"
 	"os"
@@ -31,6 +32,7 @@ import (
 )
 
 var sshUsername = "root"
+var sshLoadSites bool
 
 var sshCmd = &cobra.Command{
 	Use:   "ssh [host-filter]",
@@ -144,11 +146,15 @@ func runBoundarySSH(cmd *cobra.Command, args []string, fromDeprecatedLogin bool)
 		return hostsList[i].Name < hostsList[j].Name
 	})
 
-	sites, inventoryErr := fetchInventorySites(cmd)
-	if inventoryErr != nil {
-		fmt.Println("Inventory metadata unavailable; searching Boundary host names only.")
-		if Verbose {
-			fmt.Printf("Inventory lookup error: %v\n", inventoryErr)
+	var sites []inventory.SiteServer
+	if sshLoadSites {
+		var inventoryErr error
+		sites, inventoryErr = fetchInventorySites(cmd)
+		if inventoryErr != nil {
+			fmt.Println("Inventory metadata unavailable; searching Boundary host names only.")
+			if Verbose {
+				fmt.Printf("Inventory lookup error: %v\n", inventoryErr)
+			}
 		}
 	}
 
@@ -196,12 +202,18 @@ func runBoundarySSH(cmd *cobra.Command, args []string, fromDeprecatedLogin bool)
 		return sshTargetMatchesInput(target, input)
 	}
 
+	promptLabel := "Search server to connect"
+	if sshLoadSites {
+		promptLabel = "Search by site or server to connect"
+	}
+
 	prompt := promptui.Select{
-		Label:     "Search by site or server to connect",
+		Label:     promptLabel,
 		Items:     filteredTargets,
 		Templates: templates,
 		Size:      selectSize(len(filteredTargets)),
 		Searcher:  searcher,
+		HideHelp:  true,
 		Stdout:    &bellSkipper{},
 	}
 
@@ -261,11 +273,25 @@ func init() {
 		"root",
 		"Username used to connect with the server",
 	)
+	sshCmd.PersistentFlags().BoolVarP(
+		&sshLoadSites,
+		"sites",
+		"s",
+		false,
+		"Load site metadata from Inventory API so you can search by site name",
+	)
 
 	loginCmd.PersistentFlags().StringVar(
 		&sshUsername,
 		"ssh_username",
 		"root",
 		"Username used to connect with the server",
+	)
+	loginCmd.PersistentFlags().BoolVarP(
+		&sshLoadSites,
+		"sites",
+		"s",
+		false,
+		"Load site metadata from Inventory API so you can search by site name",
 	)
 }

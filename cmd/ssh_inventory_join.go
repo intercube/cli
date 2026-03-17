@@ -88,7 +88,7 @@ func buildSSHTargetOptions(hostsList []*hosts.Host, sites []inventory.SiteServer
 			if len(siteLabels) > 1 {
 				meta = fmt.Sprintf("%s (+%d more)", siteLabels[0], len(siteLabels)-1)
 			}
-			sitePreview = strings.Join(siteLabels, ", ")
+			sitePreview = summarizeSiteLabels(siteLabels, 5)
 			joinStatus = "inventory_enriched"
 		}
 
@@ -267,4 +267,17 @@ func appendUniqueHostIndex(indexes []int, value int) []int {
 	}
 
 	return append(indexes, value)
+}
+
+func summarizeSiteLabels(labels []string, max int) string {
+	if len(labels) == 0 {
+		return "-"
+	}
+
+	if max <= 0 || len(labels) <= max {
+		return strings.Join(labels, ", ")
+	}
+
+	visible := strings.Join(labels[:max], ", ")
+	return fmt.Sprintf("%s (+%d more)", visible, len(labels)-max)
 }

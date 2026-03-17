@@ -48,6 +48,14 @@ func TestBuildSSHTargetOptionsJoinsSharedServerSites(t *testing.T) {
 	}
 }
 
+func TestSummarizeSiteLabelsTruncates(t *testing.T) {
+	labels := []string{"a", "b", "c", "d"}
+	value := summarizeSiteLabels(labels, 2)
+	if value != "a, b (+2 more)" {
+		t.Fatalf("expected truncated summary, got %q", value)
+	}
+}
+
 func TestBuildSSHTargetOptionsKeepsBoundaryOnlyHosts(t *testing.T) {
 	hostsList := []*hosts.Host{{Id: "h-1", Name: "unmatched.intercube.cloud"}}
 
