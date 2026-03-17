@@ -202,6 +202,7 @@ func runBoundarySSH(cmd *cobra.Command, args []string, fromDeprecatedLogin bool)
 
 	detailsTemplate := `
 {{ "Server:" | faint }}	{{ .ServerName }}
+{{ "IP:" | faint }}	{{ .PrimaryIP }}
 {{ "Host ID:" | faint }}	{{ .HostID }}
 `
 	if sshLoadSites {
@@ -234,7 +235,6 @@ func runBoundarySSH(cmd *cobra.Command, args []string, fromDeprecatedLogin bool)
 		Size:      selectSize(len(filteredTargets)),
 		Searcher:  searcher,
 		HideHelp:  true,
-		Stdout:    &bellSkipper{},
 	}
 
 	i, _, err := prompt.Run()

@@ -14,6 +14,7 @@ type sshTargetOption struct {
 	Host         *hosts.Host
 	HostName     string
 	HostID       string
+	PrimaryIP    string
 	ServerName   string
 	Title        string
 	Meta         string
@@ -109,6 +110,7 @@ func buildSSHTargetOptions(hostsList []*hosts.Host, sites []inventory.SiteServer
 			Host:         host,
 			HostName:     strings.TrimSpace(host.Name),
 			HostID:       strings.TrimSpace(host.Id),
+			PrimaryIP:    chooseHostIPAddress(host),
 			ServerName:   serverName,
 			Title:        title,
 			Meta:         meta,
@@ -361,4 +363,28 @@ func shouldReplaceSSHTargetOption(current sshTargetOption, candidate sshTargetOp
 	}
 
 	return false
+}
+
+func chooseHostIPAddress(host *hosts.Host) string {
+	for _, ip := range host.IpAddresses {
+		trimmed := strings.TrimSpace(ip)
+		if trimmed != "" {
+			return trimmed
+		}
+	}
+
+	if host.Attributes == nil {
+		return "-"
+	}
+
+	for _, key := range []string{"address", "ip", "ip_address", "public_ip", "private_ip"} {
+		if value, exists := host.Attributes[key]; exists {
+			trimmed := strings.TrimSpace(fmt.Sprint(value))
+			if trimmed != "" && trimmed != "<nil>" {
+				return trimmed
+			}
+		}
+	}
+
+	return "-"
 }
