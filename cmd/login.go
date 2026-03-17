@@ -206,7 +206,6 @@ func runBoundarySSH(cmd *cobra.Command, args []string, fromDeprecatedLogin bool)
 `
 	if sshLoadSites {
 		detailsTemplate += `{{ "Sites:" | faint }}	{{ .SitePreview }}
-{{ "Metadata:" | faint }}	{{ .JoinStatus }}
 `
 	}
 
@@ -300,10 +299,25 @@ type bellSkipper struct{}
 // Write implements an io.WriterCloser over os.Stderr, but it skips the terminal bell character.
 func (bs *bellSkipper) Write(b []byte) (int, error) {
 	const charBell = 7 // c.f. readline.CharBell
-	if len(b) == 1 && b[0] == charBell {
-		return 1, nil
+
+	filtered := make([]byte, 0, len(b))
+	for _, value := range b {
+		if value == charBell {
+			continue
+		}
+		filtered = append(filtered, value)
 	}
-	return os.Stderr.Write(b)
+
+	if len(filtered) == 0 {
+		return len(b), nil
+	}
+
+	written, err := os.Stderr.Write(filtered)
+	if written == len(filtered) {
+		return len(b), err
+	}
+
+	return written, err
 }
 
 // Close implements an io.WriterCloser over os.Stderr.
