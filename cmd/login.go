@@ -185,7 +185,6 @@ func runBoundarySSH(cmd *cobra.Command, args []string, fromDeprecatedLogin bool)
 
 	detailsTemplate := `
 {{ "Server:" | faint }}	{{ .ServerName }}
-{{ "Boundary host:" | faint }}	{{ .HostName }}
 {{ "Host ID:" | faint }}	{{ .HostID }}
 `
 	if sshLoadSites {
