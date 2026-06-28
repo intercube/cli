@@ -52,10 +52,18 @@ var authStatusCmd = &cobra.Command{
 			fmt.Printf("Selected org: %s\n", selectedOrg)
 		}
 
-		fmt.Printf("Access token: %s\n", session.AccessToken)
+		fmt.Printf("Access token: %s\n", tokenPresenceLabel(session.AccessToken))
 
 		return nil
 	},
+}
+
+func tokenPresenceLabel(token string) string {
+	if strings.TrimSpace(token) == "" {
+		return "missing"
+	}
+
+	return "present"
 }
 
 func init() {
