@@ -31,7 +31,7 @@ type syncSSHTarget struct {
 	Port     int
 }
 
-func runDatabaseSync(cmd *cobra.Command, target ResolvedSyncTarget, _ *SyncSettings, dryRun bool, autoApprove bool) error {
+func runDatabaseSync(cmd *cobra.Command, target ResolvedSyncTarget, settings *SyncSettings, dryRun bool, autoApprove bool) error {
 	if isNonInteractiveMode() {
 		return fmt.Errorf("database sync requires interactive prompts in current implementation; run with an interactive terminal")
 	}
@@ -43,7 +43,7 @@ func runDatabaseSync(cmd *cobra.Command, target ResolvedSyncTarget, _ *SyncSetti
 		return err
 	}
 
-	databaseConfig, err := promptMySQLSyncConfig(target)
+	databaseConfig, err := promptMySQLSyncConfig(target, settings)
 	if err != nil {
 		return err
 	}
@@ -129,7 +129,7 @@ func ensureCommandAvailable(name string) error {
 	return nil
 }
 
-func promptMySQLSyncConfig(target ResolvedSyncTarget) (mysqlSyncConfig, error) {
+func promptMySQLSyncConfig(target ResolvedSyncTarget, settings *SyncSettings) (mysqlSyncConfig, error) {
 	sourceDatabase, err := promptText("Source MySQL database", "", requiredValue, 0)
 	if err != nil {
 		return mysqlSyncConfig{}, err
@@ -180,7 +180,7 @@ func promptMySQLSyncConfig(target ResolvedSyncTarget) (mysqlSyncConfig, error) {
 		return mysqlSyncConfig{}, err
 	}
 
-	databaseSSH, err := promptDatabaseSSHTarget(target)
+	databaseSSH, err := promptDatabaseSSHTarget(target, settings)
 	if err != nil {
 		return mysqlSyncConfig{}, err
 	}
@@ -206,10 +206,16 @@ func promptMySQLSyncConfig(target ResolvedSyncTarget) (mysqlSyncConfig, error) {
 	}, nil
 }
 
-func promptDatabaseSSHTarget(target ResolvedSyncTarget) (syncSSHTarget, error) {
+func promptDatabaseSSHTarget(target ResolvedSyncTarget, settings *SyncSettings) (syncSSHTarget, error) {
 	defaultTarget := defaultDatabaseSSHTarget(target)
+	configuredTarget, hasConfiguredTarget := configuredDatabaseSSHTarget(target, settings)
 
-	host, err := promptText("Database SSH host override (optional)", "", optionalValue, 0)
+	hostDefault := ""
+	if hasConfiguredTarget {
+		hostDefault = configuredTarget.Host
+	}
+
+	host, err := promptText("Database SSH host override (blank = selected target)", hostDefault, optionalValue, 0)
 	if err != nil {
 		return syncSSHTarget{}, err
 	}
@@ -217,12 +223,19 @@ func promptDatabaseSSHTarget(target ResolvedSyncTarget) (syncSSHTarget, error) {
 		return defaultTarget, nil
 	}
 
-	username, err := promptText("Database SSH user", defaultTarget.Username, requiredValue, 0)
+	usernameDefault := defaultTarget.Username
+	portDefault := defaultTarget.Port
+	if hasConfiguredTarget {
+		usernameDefault = configuredTarget.Username
+		portDefault = configuredTarget.Port
+	}
+
+	username, err := promptText("Database SSH user", usernameDefault, requiredValue, 0)
 	if err != nil {
 		return syncSSHTarget{}, err
 	}
 
-	port, err := promptPort("Database SSH port", strconv.Itoa(defaultTarget.Port))
+	port, err := promptPort("Database SSH port", strconv.Itoa(portDefault))
 	if err != nil {
 		return syncSSHTarget{}, err
 	}
@@ -232,6 +245,35 @@ func promptDatabaseSSHTarget(target ResolvedSyncTarget) (syncSSHTarget, error) {
 		Username: strings.TrimSpace(username),
 		Port:     port,
 	}, nil
+}
+
+func configuredDatabaseSSHTarget(target ResolvedSyncTarget, settings *SyncSettings) (syncSSHTarget, bool) {
+	defaultTarget := defaultDatabaseSSHTarget(target)
+	if settings == nil {
+		return defaultTarget, false
+	}
+
+	configured := settings.Database.TargetSSH
+	host := strings.TrimSpace(configured.Host)
+	if host == "" {
+		return defaultTarget, false
+	}
+
+	username := strings.TrimSpace(configured.User)
+	if username == "" {
+		username = defaultTarget.Username
+	}
+
+	port := configured.Port
+	if port <= 0 {
+		port = defaultTarget.Port
+	}
+
+	return syncSSHTarget{
+		Host:     host,
+		Username: username,
+		Port:     port,
+	}, true
 }
 
 func defaultDatabaseSSHTarget(target ResolvedSyncTarget) syncSSHTarget {

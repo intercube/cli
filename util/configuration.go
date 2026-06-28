@@ -20,11 +20,22 @@ type Behavior struct {
 }
 
 type Sync struct {
-	Files SyncFiles `mapstructure:"files"`
+	Files    SyncFiles    `mapstructure:"files"`
+	Database SyncDatabase `mapstructure:"database"`
 }
 
 type SyncFiles struct {
 	Items []SyncFileItem `mapstructure:"items"`
+}
+
+type SyncDatabase struct {
+	TargetSSH SyncDatabaseTargetSSH `mapstructure:"target_ssh"`
+}
+
+type SyncDatabaseTargetSSH struct {
+	Host string `mapstructure:"host"`
+	User string `mapstructure:"user"`
+	Port int    `mapstructure:"port"`
 }
 
 type SyncFileItem struct {
