@@ -16,92 +16,117 @@ limitations under the License.
 package cmd
 
 import (
-	"errors"
 	"fmt"
-	"github.com/spf13/viper"
 	"strings"
 
 	"github.com/spf13/cobra"
 )
-import "github.com/asaskevich/govalidator"
 
-var syncType string
-var fromServer string
-var filesPath string
-var remoteUser string
+type syncMode struct {
+	runFiles    bool
+	runDatabase bool
+	dryRun      bool
+	autoApprove bool
+}
+
+var (
+	syncOnlyFiles    bool
+	syncOnlyDatabase bool
+	syncAll          bool
+	syncDryRun       bool
+	syncYes          bool
+	syncSiteID       string
+	syncOrgID        string
+)
 
 var syncCmd = &cobra.Command{
-	Use:   "sync [files|database] [destination]",
-	Short: "Syncs files or database from one of your servers to another",
-	Long:  ``,
-	Run: func(cmd *cobra.Command, args []string) {
-		sync()
-	},
-	PreRunE: func(cmd *cobra.Command, args []string) error {
-		if len(args) < 1 {
-			return errors.New("The type argument is required")
-		} else {
-			syncType = args[0]
-			if len(args) > 1 {
-				fromServer = args[1]
-			} else {
-				fromServer = viper.GetStringMapString("file_syncing")["from_server"]
-			}
-
-			if len(args) > 2 {
-				filesPath = args[2]
-			} else {
-				filesPath = viper.GetStringMapString("file_syncing")["path"]
-			}
-
-			if len(args) > 3 {
-				remoteUser = args[3]
-			} else {
-				remoteUser = viper.GetString("remote_user")
-			}
-
-			if syncType != "database" && syncType != "files" {
-				return errors.New("The type argument either has to be 'database' or 'files'")
-			}
-
-			if syncType == "files" {
-				var err error
-				fromServer, filesPath, remoteUser, err = ensureSyncConfiguration(fromServer, filesPath, remoteUser)
-				if err != nil {
-					return fmt.Errorf("unable to continue sync: %w", err)
-				}
-			}
-
-			if !govalidator.IsDNSName(fromServer) {
-				return errors.New("Provide a valid destination hostname")
-			}
-
-			if syncType == "files" && strings.TrimSpace(filesPath) == "" {
-				return errors.New("Provide a valid files path")
-			}
-
-			if syncType == "files" && strings.TrimSpace(remoteUser) == "" {
-				return errors.New("Provide a valid remote user")
-			}
-
-			return nil
+	Use:   "sync [env-or-host]",
+	Short: "Sync files and MySQL data to another environment",
+	Args:  cobra.MaximumNArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		query := ""
+		if len(args) == 1 {
+			query = strings.TrimSpace(args[0])
 		}
+
+		settings, err := loadSyncSettings()
+		if err != nil {
+			return err
+		}
+
+		mode, err := resolveSyncMode()
+		if err != nil {
+			return err
+		}
+
+		inventoryClient, _, err := newInventoryClient(cmd, syncOrgID)
+		if err != nil {
+			return err
+		}
+
+		target, source, err := resolveSyncTarget(cmd, inventoryClient, query, strings.TrimSpace(syncSiteID))
+		if err != nil {
+			return err
+		}
+
+		fmt.Printf("Source: %s\n", source.DisplayName)
+		fmt.Printf("Target: %s (%s@%s:%d)\n", target.DisplayName, target.Username, target.Host, target.Port)
+
+		if mode.runFiles {
+			if err := runFileSync(cmd, target, &settings, mode.dryRun); err != nil {
+				return err
+			}
+		}
+
+		if mode.runDatabase {
+			if err := runDatabaseSync(cmd, target, &settings, mode.dryRun, mode.autoApprove); err != nil {
+				return err
+			}
+		}
+
+		fmt.Println("Sync finished.")
+		return nil
 	},
+}
+
+func resolveSyncMode() (syncMode, error) {
+	mode := syncMode{
+		dryRun:      syncDryRun,
+		autoApprove: syncYes,
+	}
+
+	if syncAll {
+		mode.runFiles = true
+		mode.runDatabase = true
+		return mode, nil
+	}
+
+	if syncOnlyFiles {
+		mode.runFiles = true
+	}
+
+	if syncOnlyDatabase {
+		mode.runDatabase = true
+	}
+
+	if mode.runFiles || mode.runDatabase {
+		return mode, nil
+	}
+
+	mode.runFiles = true
+	mode.runDatabase = true
+
+	return mode, nil
 }
 
 func init() {
 	rootCmd.AddCommand(syncCmd)
 
-	syncCmd.PersistentFlags().StringVar(&syncType, "type", "", "Either 'database' or 'files'")
-	syncCmd.PersistentFlags().StringVar(&fromServer, "from_server", "", "Provide the hostname of the server to pull the data from")
-	syncCmd.PersistentFlags().StringVar(&filesPath, "files_path", "", "Provide the location of where the files are located")
-	syncCmd.PersistentFlags().StringVar(&remoteUser, "remote_user", "", "Provide the user to connect to the server")
-}
-
-func sync() {
-	if syncType == "files" {
-		syncFiles(fromServer, filesPath, remoteUser)
-	} else {
-		//syncDatabase()
-	}
+	syncCmd.Flags().BoolVar(&syncOnlyFiles, "files", false, "sync files only")
+	syncCmd.Flags().BoolVar(&syncOnlyDatabase, "database", false, "sync database only")
+	syncCmd.Flags().BoolVar(&syncAll, "all", false, "sync both files and database")
+	syncCmd.Flags().BoolVar(&syncDryRun, "dry-run", false, "print planned commands without executing")
+	syncCmd.Flags().BoolVar(&syncYes, "yes", false, "skip confirmation prompts")
+	syncCmd.Flags().StringVar(&syncSiteID, "site-id", "", "target site id override")
+	syncCmd.Flags().StringVar(&syncOrgID, "org-id", "", "organization id for inventory requests")
 }
