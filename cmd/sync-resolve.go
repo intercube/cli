@@ -55,7 +55,7 @@ func resolveSyncTarget(cmd *cobra.Command, inventoryClient *inventory.Client, qu
 		return ResolvedSyncTarget{}, source, err
 	}
 
-	target, err := promptTargetAccessDetails(selectedSite)
+	target, err := resolveTargetAccessDetails(selectedSite)
 	if err != nil {
 		return ResolvedSyncTarget{}, source, err
 	}
@@ -91,10 +91,11 @@ func resolveSourceSite(sites []inventory.SiteServer) *inventory.SiteServer {
 	return nil
 }
 func selectTargetSite(candidates []inventory.SiteServer, allSites []inventory.SiteServer, query string, explicitSiteID string) (*inventory.SiteServer, error) {
-	if strings.TrimSpace(explicitSiteID) != "" {
-		selected, found := findSiteByID(allSites, explicitSiteID)
+	resolvedSiteID := resolveSiteID(explicitSiteID)
+	if strings.TrimSpace(resolvedSiteID) != "" {
+		selected, found := findSiteByID(allSites, resolvedSiteID)
 		if !found {
-			return nil, fmt.Errorf("site %q not found", explicitSiteID)
+			return nil, fmt.Errorf("site %q not found", resolvedSiteID)
 		}
 
 		return selected, nil
@@ -107,6 +108,10 @@ func selectTargetSite(candidates []inventory.SiteServer, allSites []inventory.Si
 		}
 
 		if len(matches) > 1 {
+			if isNonInteractiveMode() {
+				return nil, fmt.Errorf("query %q matched multiple sites; pass --site-id to run non-interactively", query)
+			}
+
 			matchedSites := make([]inventory.SiteServer, 0, len(matches))
 			for _, match := range matches {
 				matchedSites = append(matchedSites, *match)
@@ -124,6 +129,14 @@ func selectTargetSite(candidates []inventory.SiteServer, allSites []inventory.Si
 		return nil, fmt.Errorf("no target site matched %q", query)
 	}
 
+	if isNonInteractiveMode() {
+		if len(candidates) == 1 {
+			return &candidates[0], nil
+		}
+
+		return nil, fmt.Errorf("target site is required in non-interactive mode; pass --site-id or an unambiguous [env-or-host]")
+	}
+
 	selected, err := selectSiteFromList(candidates)
 	if err != nil {
 		return nil, err
@@ -139,6 +152,10 @@ func selectSiteFromList(sites []inventory.SiteServer) (*inventory.SiteServer, er
 
 	if len(sites) == 1 {
 		return &sites[0], nil
+	}
+
+	if err := ensureInteractiveMode("target site selection"); err != nil {
+		return nil, err
 	}
 
 	labels := make([]string, 0, len(sites))
@@ -267,7 +284,27 @@ func excludeSourceSite(sites []inventory.SiteServer, sourceSite *inventory.SiteS
 	return result
 }
 
-func promptTargetAccessDetails(site *inventory.SiteServer) (ResolvedSyncTarget, error) {
+func resolveTargetAccessDetails(site *inventory.SiteServer) (ResolvedSyncTarget, error) {
+	if isNonInteractiveMode() {
+		host := strings.TrimSpace(site.MainDomain)
+		username := strings.TrimSpace(site.Username)
+		if host == "" || username == "" {
+			return ResolvedSyncTarget{}, fmt.Errorf("missing target access defaults; provide --site-id and ensure site has domain/user")
+		}
+
+		return ResolvedSyncTarget{
+			SiteID:      strings.TrimSpace(site.ID),
+			DisplayName: syncSiteDisplayName(*site),
+			Host:        host,
+			Username:    username,
+			Port:        22,
+		}, nil
+	}
+
+	if err := ensureInteractiveMode("target access prompts"); err != nil {
+		return ResolvedSyncTarget{}, err
+	}
+
 	hostDefault := strings.TrimSpace(site.MainDomain)
 	userDefault := strings.TrimSpace(site.Username)
 	portDefault := "22"

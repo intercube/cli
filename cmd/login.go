@@ -23,6 +23,7 @@ import (
 	"github.com/hashicorp/boundary/api/hostcatalogs"
 	"github.com/hashicorp/boundary/api/hosts"
 	"github.com/hashicorp/boundary/api/scopes"
+	"github.com/intercube/cli/util/inventory"
 	"github.com/manifoldco/promptui"
 	"github.com/spf13/cobra"
 	"os"
@@ -32,13 +33,14 @@ import (
 )
 
 var sshUsername = "root"
+var sshLoadSites bool
 
 var sshCmd = &cobra.Command{
 	Use:   "ssh [host-filter]",
 	Short: "Connect to a host over Boundary SSH",
 	Args:  cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
-		runBoundarySSH(args, false)
+		runBoundarySSH(cmd, args, false)
 	},
 }
 
@@ -49,11 +51,11 @@ var loginCmd = &cobra.Command{
 	Args:       cobra.MaximumNArgs(1),
 	Deprecated: "use `intercube ssh` instead",
 	Run: func(cmd *cobra.Command, args []string) {
-		runBoundarySSH(args, true)
+		runBoundarySSH(cmd, args, true)
 	},
 }
 
-func runBoundarySSH(args []string, fromDeprecatedLogin bool) {
+func runBoundarySSH(cmd *cobra.Command, args []string, fromDeprecatedLogin bool) {
 	if fromDeprecatedLogin {
 		fmt.Println("Warning: `intercube login` is deprecated. Use `intercube ssh` instead.")
 	}
@@ -71,6 +73,22 @@ func runBoundarySSH(args []string, fromDeprecatedLogin bool) {
 	boundaryPath, err := exec.LookPath("boundary")
 	if err != nil {
 		panic("Boundary is not installed. Download and install Boundary before using `intercube ssh` (https://learn.hashicorp.com/tutorials/boundary/getting-started-install)")
+	}
+
+	type inventoryFetchResult struct {
+		sites []inventory.SiteServer
+		err   error
+	}
+
+	var inventoryResults <-chan inventoryFetchResult
+	if sshLoadSites {
+		resultChannel := make(chan inventoryFetchResult, 1)
+		inventoryResults = resultChannel
+
+		go func() {
+			sites, fetchErr := fetchInventorySites(cmd)
+			resultChannel <- inventoryFetchResult{sites: sites, err: fetchErr}
+		}()
 	}
 
 	apiConfig, _ := api.DefaultConfig()
@@ -106,14 +124,21 @@ func runBoundarySSH(args []string, fromDeprecatedLogin bool) {
 
 	scopes := scopes.NewClient(client)
 	ctx := context.Background()
-	scopeResults, _ := scopes.List(ctx, config.Login.Scope)
+	scopeResults, err := scopes.List(ctx, config.Login.Scope)
+	if err != nil {
+		panic(err)
+	}
 
 	catalogsClient := hostcatalogs.NewClient(client)
 
 	var catalogs []*hostcatalogs.HostCatalog
 
 	for _, item := range scopeResults.Items {
-		catalogsResult, _ := catalogsClient.List(ctx, item.Id)
+		catalogsResult, listErr := catalogsClient.List(ctx, item.Id)
+		if listErr != nil {
+			panic(listErr)
+		}
+
 		catalogs = append(catalogs, catalogsResult.Items...)
 	}
 
@@ -121,75 +146,95 @@ func runBoundarySSH(args []string, fromDeprecatedLogin bool) {
 
 	hostClient := hosts.NewClient(client)
 	for _, hostCatalog := range catalogs {
-		hostsResult, _ := hostClient.List(ctx, hostCatalog.Id)
+		hostsResult, listErr := hostClient.List(ctx, hostCatalog.Id)
+		if listErr != nil {
+			panic(listErr)
+		}
+
 		hostsList = append(hostsList, hostsResult.Items...)
+	}
+	hostsList = dedupeBoundaryHosts(hostsList)
+
+	if len(hostsList) == 0 {
+		fmt.Println("No Boundary hosts available")
+		return
 	}
 
 	sort.Slice(hostsList[:], func(i, j int) bool {
 		return hostsList[i].Name < hostsList[j].Name
 	})
 
-	filteredHosts := hostsList
-	if len(args) == 1 {
-		searchTerm := strings.ToLower(strings.TrimSpace(args[0]))
-		filteredHosts = make([]*hosts.Host, 0, len(hostsList))
-
-		for _, host := range hostsList {
-			if strings.Contains(strings.ToLower(host.Name), searchTerm) {
-				filteredHosts = append(filteredHosts, host)
+	var sites []inventory.SiteServer
+	if inventoryResults != nil {
+		inventoryResult := <-inventoryResults
+		sites = inventoryResult.sites
+		inventoryErr := inventoryResult.err
+		if inventoryErr != nil {
+			fmt.Println("Inventory metadata unavailable; searching Boundary host names only.")
+			if Verbose {
+				fmt.Printf("Inventory lookup error: %v\n", inventoryErr)
 			}
 		}
+	}
 
-		switch len(filteredHosts) {
+	targetOptions := buildSSHTargetOptions(hostsList, sites)
+	filteredTargets := targetOptions
+	if len(args) == 1 {
+		filteredTargets = filterAndRankSSHTargets(targetOptions, args[0])
+
+		switch len(filteredTargets) {
 		case 0:
 			fmt.Printf("No hosts matched %q\n", args[0])
 			return
 		case 1:
-			fmt.Printf("Connecting to host: %s\n", filteredHosts[0].Name)
-			connectToHost(boundaryPath, boundaryUrl, filteredHosts[0])
+			fmt.Printf("Connecting to host: %s\n", filteredTargets[0].HostName)
+			connectToHost(boundaryPath, boundaryUrl, filteredTargets[0].Host)
 			return
 		}
 	}
 
 	fmt.Printf("Total of %v hosts available\n", len(hostsList))
 	if len(args) == 1 {
-		fmt.Printf("%v hosts match %q\n\n", len(filteredHosts), args[0])
+		fmt.Printf("%v hosts match %q\n\n", len(filteredTargets), args[0])
 	} else {
 		fmt.Println()
 	}
 
 	detailsTemplate := `
---------- Host ----------
-{{ "Name:" | faint }}	{{ .Name }}
-{{range $key, $value := .Attributes}}{{ $key }}{{ ":" | faint }}	{{ $value }}{{end}}
+{{ "Server:" | faint }}	{{ .ServerName }}
+{{ "IP:" | faint }}	{{ .PrimaryIP }}
+{{ "Host ID:" | faint }}	{{ .HostID }}
 `
-	if len(args) == 1 {
-		detailsTemplate = ""
+	if sshLoadSites {
+		detailsTemplate += `{{ "Sites:" | faint }}	{{ .SitePreview }}
+`
 	}
 
 	templates := &promptui.SelectTemplates{
-		Label:    "{{ . }}?",
-		Active:   "> {{ .Name | cyan }}",
-		Inactive: "  {{ .Name }}",
-		Selected: "Selected host: {{ .Name | cyan }}",
+		Label:    "{{ . }}",
+		Active:   "> {{ .Title | cyan }}{{ if .Meta }} {{ .Meta | faint }}{{ end }}",
+		Inactive: "  {{ .Title }}{{ if .Meta }} {{ .Meta | faint }}{{ end }}",
+		Selected: "Selected host: {{ .HostName | cyan }}",
 		Details:  detailsTemplate,
 	}
 
 	searcher := func(input string, index int) bool {
-		host := filteredHosts[index]
-		name := strings.Replace(strings.ToLower(host.Name), " ", "", -1)
-		input = strings.Replace(strings.ToLower(input), " ", "", -1)
+		target := filteredTargets[index]
+		return sshTargetMatchesInput(target, input)
+	}
 
-		return strings.Contains(name, input)
+	promptLabel := "Search server to connect"
+	if sshLoadSites {
+		promptLabel = "Search by site or server to connect"
 	}
 
 	prompt := promptui.Select{
-		Label:     "Which host would you like to connect to?",
-		Items:     filteredHosts,
+		Label:     promptLabel,
+		Items:     filteredTargets,
 		Templates: templates,
-		Size:      selectSize(len(filteredHosts)),
+		Size:      selectSize(len(filteredTargets)),
 		Searcher:  searcher,
-		Stdout:    &bellSkipper{},
+		HideHelp:  true,
 	}
 
 	i, _, err := prompt.Run()
@@ -199,8 +244,8 @@ func runBoundarySSH(args []string, fromDeprecatedLogin bool) {
 		return
 	}
 
-	fmt.Printf("Connecting to host: %s\n", filteredHosts[i].Name)
-	connectToHost(boundaryPath, boundaryUrl, filteredHosts[i])
+	fmt.Printf("Connecting to host: %s\n", filteredTargets[i].HostName)
+	connectToHost(boundaryPath, boundaryUrl, filteredTargets[i].Host)
 }
 
 func connectToHost(boundaryPath, boundaryURL string, host *hosts.Host) {
@@ -221,16 +266,58 @@ func connectToHost(boundaryPath, boundaryURL string, host *hosts.Host) {
 	_ = command.Run()
 }
 
+func dedupeBoundaryHosts(hostsList []*hosts.Host) []*hosts.Host {
+	if len(hostsList) < 2 {
+		return hostsList
+	}
+
+	result := make([]*hosts.Host, 0, len(hostsList))
+	seen := make(map[string]struct{}, len(hostsList))
+	for _, host := range hostsList {
+		key := strings.TrimSpace(host.Id)
+		if key == "" {
+			key = strings.ToLower(strings.TrimSpace(host.Name))
+		}
+		if key == "" {
+			key = fmt.Sprintf("fallback-%d", len(result))
+		}
+
+		if _, exists := seen[key]; exists {
+			continue
+		}
+
+		seen[key] = struct{}{}
+		result = append(result, host)
+	}
+
+	return result
+}
+
 type bellSkipper struct{}
 
 // This solves the issue where manifoldco/promptui sends out an annoying bell sound whenever you hit a key (on MacOS)
 // Write implements an io.WriterCloser over os.Stderr, but it skips the terminal bell character.
 func (bs *bellSkipper) Write(b []byte) (int, error) {
 	const charBell = 7 // c.f. readline.CharBell
-	if len(b) == 1 && b[0] == charBell {
-		return 0, nil
+
+	filtered := make([]byte, 0, len(b))
+	for _, value := range b {
+		if value == charBell {
+			continue
+		}
+		filtered = append(filtered, value)
 	}
-	return os.Stderr.Write(b)
+
+	if len(filtered) == 0 {
+		return len(b), nil
+	}
+
+	written, err := os.Stderr.Write(filtered)
+	if written == len(filtered) {
+		return len(b), err
+	}
+
+	return written, err
 }
 
 // Close implements an io.WriterCloser over os.Stderr.
@@ -248,11 +335,25 @@ func init() {
 		"root",
 		"Username used to connect with the server",
 	)
+	sshCmd.PersistentFlags().BoolVarP(
+		&sshLoadSites,
+		"sites",
+		"s",
+		false,
+		"Load site metadata from Inventory API so you can search by site name",
+	)
 
 	loginCmd.PersistentFlags().StringVar(
 		&sshUsername,
 		"ssh_username",
 		"root",
 		"Username used to connect with the server",
+	)
+	loginCmd.PersistentFlags().BoolVarP(
+		&sshLoadSites,
+		"sites",
+		"s",
+		false,
+		"Load site metadata from Inventory API so you can search by site name",
 	)
 }

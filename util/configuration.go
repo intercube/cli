@@ -5,6 +5,18 @@ type Configuration struct {
 	MagentoBaseUrls []MagentoBaseUrl `mapstructure:"magento_base_urls"`
 	Login           Login            `mapstructure:"login"`
 	Sync            Sync             `mapstructure:"sync"`
+	Context         ContextDefaults  `mapstructure:"context"`
+	Behavior        Behavior         `mapstructure:"behavior"`
+}
+
+type ContextDefaults struct {
+	OrgID    string `mapstructure:"org_id"`
+	SiteID   string `mapstructure:"site_id"`
+	ServerID string `mapstructure:"server_id"`
+}
+
+type Behavior struct {
+	NonInteractive bool `mapstructure:"non_interactive"`
 }
 
 type Sync struct {

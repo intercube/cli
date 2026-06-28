@@ -14,6 +14,8 @@ var ClerkScopes = "openid profile email offline_access public_metadata"
 var ClerkCallbackPort = "8976"
 var InventoryAPIBaseURL = "https://inventory-nexus.dev-c8s.intercube.dev/"
 var OrganizationID = ""
+var SiteID = ""
+var ServerID = ""
 
 const (
 	EnvClerkIssuer       = "INTERCUBE_AUTH_CLERK_ISSUER"
@@ -23,6 +25,9 @@ const (
 	EnvClerkCallbackPort = "INTERCUBE_AUTH_CLERK_CALLBACK_PORT"
 	EnvInventoryAPIURL   = "INTERCUBE_INVENTORY_API_BASE_URL"
 	EnvOrganizationID    = "INTERCUBE_ORGANIZATION_ID"
+	EnvOrganizationIDAlt = "INTERCUBE_ORG_ID"
+	EnvSiteID            = "INTERCUBE_SITE_ID"
+	EnvServerID          = "INTERCUBE_SERVER_ID"
 )
 
 func LoadFromEnv() {
@@ -50,8 +55,18 @@ func LoadFromEnv() {
 		InventoryAPIBaseURL = value
 	}
 
-	if value := strings.TrimSpace(os.Getenv(EnvOrganizationID)); value != "" {
+	if value := strings.TrimSpace(os.Getenv(EnvOrganizationIDAlt)); value != "" {
 		OrganizationID = value
+	} else if value := strings.TrimSpace(os.Getenv(EnvOrganizationID)); value != "" {
+		OrganizationID = value
+	}
+
+	if value := strings.TrimSpace(os.Getenv(EnvSiteID)); value != "" {
+		SiteID = value
+	}
+
+	if value := strings.TrimSpace(os.Getenv(EnvServerID)); value != "" {
+		ServerID = value
 	}
 }
 

@@ -18,10 +18,11 @@ package cmd
 import (
 	"fmt"
 	"github.com/intercube/cli/util"
+	"github.com/intercube/cli/util/contextconfig"
 	"github.com/spf13/cobra"
 	"os"
+	"strings"
 
-	"github.com/mitchellh/go-homedir"
 	"github.com/spf13/viper"
 )
 
@@ -48,6 +49,7 @@ func Execute() {
 func init() {
 	rootCmd.PersistentFlags().BoolVarP(&Verbose, "verbose", "v", false, "verbose output")
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.intercube.yaml)")
+	rootCmd.PersistentFlags().StringVar(&contextOverride, "context", "", "execution context override (pipeline,server,repository,global)")
 
 	cobra.OnInitialize(initConfig)
 }
@@ -55,33 +57,43 @@ func init() {
 var config util.Configuration
 
 func initConfig() {
-	viper.SetConfigName("config")
-	if cfgFile != "" {
-		viper.SetConfigFile(cfgFile)
-	} else {
-		home, err := homedir.Dir()
-		if err != nil {
-			fmt.Println(err)
-			os.Exit(1)
-		}
-
-		viper.AddConfigPath(home)
-		viper.SetConfigName(".intercube")
-	}
-
+	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	viper.BindEnv("context", "INTERCUBE_CONTEXT")
+	viper.BindEnv("behavior.non_interactive", "INTERCUBE_NON_INTERACTIVE")
+	viper.BindEnv("context.org_id", "INTERCUBE_ORG_ID", "INTERCUBE_ORGANIZATION_ID")
+	viper.BindEnv("context.site_id", "INTERCUBE_SITE_ID")
+	viper.BindEnv("context.server_id", "INTERCUBE_SERVER_ID")
 	viper.AutomaticEnv()
 
-	viper.SetDefault("sync", map[string]interface{}{})
+	workingDir, _ := os.Getwd()
+	explicitContext := strings.TrimSpace(contextOverride)
+	if explicitContext == "" {
+		explicitContext = strings.TrimSpace(viper.GetString("context"))
+	}
+	runtimeContext = contextconfig.DetectRuntime(explicitContext, workingDir)
 
-	if err := viper.ReadInConfig(); err == nil {
-		if Verbose {
-			fmt.Println("Using config file:", viper.ConfigFileUsed())
-		}
+	viper.SetDefault("behavior.non_interactive", false)
+	viper.SetDefault("sync", map[string]interface{}{})
+	loadResult, err := contextconfig.LoadLayeredConfig(viper.GetViper(), runtimeContext, cfgFile)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
 	}
 
-	err := viper.Unmarshal(&config)
+	if Verbose {
+		for _, path := range loadResult.LoadedPaths {
+			fmt.Println("Using config file:", path)
+		}
+		fmt.Printf("Using context: %s\n", runtimeContext.Kind)
+	}
+
+	err = viper.Unmarshal(&config)
 	if err != nil {
 		panic(fmt.Errorf("Unable to decode Config: %s \n", err))
+	}
+
+	if config.Behavior.NonInteractive {
+		runtimeContext.NonInteractive = true
 	}
 }
 

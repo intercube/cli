@@ -21,13 +21,18 @@ func resolveSiteSelection(cmd *cobra.Command, inventoryClient *inventory.Client,
 		return nil, fmt.Errorf("no sites available for your account")
 	}
 
-	if siteID != "" {
-		selected, found := findSiteByID(sites, siteID)
+	resolvedSiteID := resolveSiteID(siteID)
+	if resolvedSiteID != "" {
+		selected, found := findSiteByID(sites, resolvedSiteID)
 		if !found {
-			return nil, fmt.Errorf("site %q not found", siteID)
+			return nil, fmt.Errorf("site %q not found", resolvedSiteID)
 		}
 
 		return selected, nil
+	}
+
+	if isNonInteractiveMode() {
+		return nil, fmt.Errorf("site selection requires --site-id, %s env var, or context.site_id", "INTERCUBE_SITE_ID")
 	}
 
 	return selectSite(sites)

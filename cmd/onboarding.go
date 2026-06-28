@@ -152,12 +152,53 @@ func runOnboarding() {
 		}
 	}
 
+	configureContextDefaults, err := chooseYesNo("Configure context defaults too?")
+	if err != nil {
+		fmt.Printf("Onboarding cancelled: %v\n", err)
+		return
+	}
+
+	contextOrgID := strings.TrimSpace(config.Context.OrgID)
+	contextSiteID := strings.TrimSpace(config.Context.SiteID)
+	contextServerID := strings.TrimSpace(config.Context.ServerID)
+	contextNonInteractive := config.Behavior.NonInteractive
+
+	if configureContextDefaults {
+		contextOrgID, err = promptText("Default organization ID (optional)", contextOrgID, optionalValue, 0)
+		if err != nil {
+			fmt.Printf("Onboarding cancelled: %v\n", err)
+			return
+		}
+
+		contextSiteID, err = promptText("Default site ID (optional)", contextSiteID, optionalValue, 0)
+		if err != nil {
+			fmt.Printf("Onboarding cancelled: %v\n", err)
+			return
+		}
+
+		contextServerID, err = promptText("Default server ID (optional)", contextServerID, optionalValue, 0)
+		if err != nil {
+			fmt.Printf("Onboarding cancelled: %v\n", err)
+			return
+		}
+
+		contextNonInteractive, err = chooseYesNo("Force non-interactive mode by default?")
+		if err != nil {
+			fmt.Printf("Onboarding cancelled: %v\n", err)
+			return
+		}
+	}
+
 	viper.Set("login.username", username)
 	viper.Set("login.password", password)
 	viper.Set("login.scope", scope)
 	viper.Set("login.auth_method", authMethod)
 	viper.Set("login.instance_url", instanceURL)
 	viper.Set("sync.files.items", toMapSlice(syncItems))
+	viper.Set("context.org_id", contextOrgID)
+	viper.Set("context.site_id", contextSiteID)
+	viper.Set("context.server_id", contextServerID)
+	viper.Set("behavior.non_interactive", contextNonInteractive)
 
 	if err := writeOnboardingConfig(configPath); err != nil {
 		panic(err)
@@ -412,10 +453,6 @@ func saveConfigAndReload(configPath string) error {
 func resolveOnboardingConfigPath() (string, error) {
 	if cfgFile != "" {
 		return cfgFile, nil
-	}
-
-	if used := viper.ConfigFileUsed(); used != "" {
-		return used, nil
 	}
 
 	home, err := homedir.Dir()
