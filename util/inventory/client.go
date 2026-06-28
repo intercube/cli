@@ -103,14 +103,9 @@ type pagedMeta struct {
 	HasPrevious bool `json:"hasprevious"`
 }
 
-type organizationSSHKeyPagedResponse struct {
-	Items []OrganizationSSHKey `json:"items"`
-	Meta  pagedMeta            `json:"meta"`
-}
-
-type redirectPagedResponse struct {
-	Items []Redirect `json:"items"`
-	Meta  pagedMeta  `json:"meta"`
+type pagedResponse[T any] struct {
+	Items []T       `json:"items"`
+	Meta  pagedMeta `json:"meta"`
 }
 
 func NewClient(baseURL, organizationID string, store *authutil.SessionStore, clerk *authutil.ClerkClient) *Client {
@@ -126,9 +121,23 @@ func NewClient(baseURL, organizationID string, store *authutil.SessionStore, cle
 }
 
 func (c *Client) ListSites(ctx context.Context) ([]SiteServer, error) {
-	var sites []SiteServer
-	if err := c.doJSON(ctx, http.MethodGet, "/sites", nil, &sites); err != nil {
-		return nil, err
+	sites := make([]SiteServer, 0)
+	offset := 0
+	limit := 100
+
+	for {
+		var page pagedResponse[SiteServer]
+		path := fmt.Sprintf("/sites?offset=%d&limit=%d", offset, limit)
+		if err := c.doJSON(ctx, http.MethodGet, path, nil, &page); err != nil {
+			return nil, err
+		}
+
+		sites = append(sites, page.Items...)
+		if !page.Meta.HasNext {
+			break
+		}
+
+		offset += limit
 	}
 
 	return sites, nil
@@ -149,7 +158,7 @@ func (c *Client) ListOrganizationSSHKeys(ctx context.Context) ([]OrganizationSSH
 	limit := 100
 
 	for {
-		var page organizationSSHKeyPagedResponse
+		var page pagedResponse[OrganizationSSHKey]
 		path := fmt.Sprintf("/organization/ssh-keys?offset=%d&limit=%d", offset, limit)
 		if err := c.doJSON(ctx, http.MethodGet, path, nil, &page); err != nil {
 			return nil, err
@@ -232,7 +241,7 @@ func (c *Client) ListSiteRedirects(ctx context.Context, siteID string) ([]Redire
 	limit := 100
 
 	for {
-		var page redirectPagedResponse
+		var page pagedResponse[Redirect]
 		path := fmt.Sprintf("/site/%s/redirects?offset=%d&limit=%d", siteID, offset, limit)
 		if err := c.doJSON(ctx, http.MethodGet, path, nil, &page); err != nil {
 			return nil, err

@@ -79,43 +79,41 @@ func symlink(from string, to string) error {
 
 	if !fileExists(resolvedFrom) {
 		return fmt.Errorf("origin file %v does not exist", resolvedFrom)
-	} else {
-		alreadyMapped, mappedErr := destinationMatchesSource(resolvedFrom, resolvedTo)
-		if mappedErr == nil && alreadyMapped {
-			fmt.Printf("Already mapped %v to %v\n", resolvedFrom, resolvedTo)
-			return nil
-		}
-
-		if !fileExists(resolvedTo) || override {
-			if override {
-				if destination, err := os.Lstat(resolvedTo); err == nil {
-					if destination.IsDir() {
-						if err := os.RemoveAll(resolvedTo); err != nil {
-							return err
-						}
-						fmt.Printf("Removed directory %v\n", resolvedTo)
-					} else {
-						if err := os.Remove(resolvedTo); err != nil {
-							return err
-						}
-						fmt.Printf("Removed file %v\n", resolvedTo)
-					}
-				}
-			}
-
-			err := os.Symlink(resolvedFrom, resolvedTo)
-			if err != nil {
-				return fmt.Errorf("unable to map %v -> %v: %w", resolvedFrom, resolvedTo, err)
-			} else {
-				fmt.Printf("Mapped %v to %v\n", resolvedFrom, resolvedTo)
-				return nil
-			}
-		} else {
-			return fmt.Errorf("destination file %v already exists", resolvedTo)
-		}
 	}
 
-	return nil
+	alreadyMapped, mappedErr := destinationMatchesSource(resolvedFrom, resolvedTo)
+	if mappedErr == nil && alreadyMapped {
+		fmt.Printf("Already mapped %v to %v\n", resolvedFrom, resolvedTo)
+		return nil
+	}
+
+	if !fileExists(resolvedTo) || override {
+		if override {
+			if destination, err := os.Lstat(resolvedTo); err == nil {
+				if destination.IsDir() {
+					if err := os.RemoveAll(resolvedTo); err != nil {
+						return err
+					}
+					fmt.Printf("Removed directory %v\n", resolvedTo)
+				} else {
+					if err := os.Remove(resolvedTo); err != nil {
+						return err
+					}
+					fmt.Printf("Removed file %v\n", resolvedTo)
+				}
+			}
+		}
+
+		err := os.Symlink(resolvedFrom, resolvedTo)
+		if err != nil {
+			return fmt.Errorf("unable to map %v -> %v: %w", resolvedFrom, resolvedTo, err)
+		}
+
+		fmt.Printf("Mapped %v to %v\n", resolvedFrom, resolvedTo)
+		return nil
+	}
+
+	return fmt.Errorf("destination file %v already exists", resolvedTo)
 }
 
 func fileExists(filename string) bool {
