@@ -46,6 +46,9 @@ Behavior:
 - argument auto-resolves against site ID/domain/server/user when possible
 - stores only file path mappings in config (`sync.files.items`)
 - database details are requested interactively for each run (not persisted)
+- database sync uses the selected target server by default, with an optional
+  database SSH host override for clustered setups where files and MySQL live on
+  separate servers
 
 ### Context-aware defaults
 

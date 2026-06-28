@@ -21,7 +21,14 @@ type mysqlSyncConfig struct {
 	TargetHost        string
 	TargetPort        int
 	TargetPasswordEnv string
+	DatabaseSSH       syncSSHTarget
 	DumpFlags         []string
+}
+
+type syncSSHTarget struct {
+	Host     string
+	Username string
+	Port     int
 }
 
 func runDatabaseSync(cmd *cobra.Command, target ResolvedSyncTarget, _ *SyncSettings, dryRun bool, autoApprove bool) error {
@@ -41,13 +48,13 @@ func runDatabaseSync(cmd *cobra.Command, target ResolvedSyncTarget, _ *SyncSetti
 		return err
 	}
 
-	if isSameDatabaseTarget(target, databaseConfig) {
+	if isSameDatabaseTarget(databaseConfig) {
 		return fmt.Errorf("source and target resolve to the same database destination")
 	}
 
 	fmt.Println("Database sync plan:")
 	fmt.Printf("  Source: %s@%s:%d/%s\n", databaseConfig.SourceUser, databaseConfig.SourceHost, databaseConfig.SourcePort, databaseConfig.SourceDatabase)
-	fmt.Printf("  Target: %s@%s:%d/%s (via %s@%s:%d)\n", databaseConfig.TargetUser, databaseConfig.TargetHost, databaseConfig.TargetPort, databaseConfig.TargetDatabase, target.Username, target.Host, target.Port)
+	fmt.Printf("  Target: %s@%s:%d/%s (via %s@%s:%d)\n", databaseConfig.TargetUser, databaseConfig.TargetHost, databaseConfig.TargetPort, databaseConfig.TargetDatabase, databaseConfig.DatabaseSSH.Username, databaseConfig.DatabaseSSH.Host, databaseConfig.DatabaseSSH.Port)
 
 	if !autoApprove {
 		confirmed, confirmErr := promptYesNo("Continue with MySQL import into target?")
@@ -73,7 +80,7 @@ func runDatabaseSync(cmd *cobra.Command, target ResolvedSyncTarget, _ *SyncSetti
 
 	dumpArgs := buildMySQLDumpArgs(databaseConfig)
 	remoteCommand := buildRemoteMySQLImportCommand(databaseConfig, targetPassword)
-	sshArgs := []string{"-p", strconv.Itoa(target.Port), fmt.Sprintf("%s@%s", target.Username, target.Host), remoteCommand}
+	sshArgs := buildDatabaseSSHArgs(databaseConfig.DatabaseSSH, remoteCommand)
 
 	fmt.Printf("Running: MYSQL_PWD=<hidden> mysqldump %s | ssh %s\n", strings.Join(dumpArgs, " "), strings.Join(sshArgs, " "))
 
@@ -173,6 +180,11 @@ func promptMySQLSyncConfig(target ResolvedSyncTarget) (mysqlSyncConfig, error) {
 		return mysqlSyncConfig{}, err
 	}
 
+	databaseSSH, err := promptDatabaseSSHTarget(target)
+	if err != nil {
+		return mysqlSyncConfig{}, err
+	}
+
 	flagsRaw, err := promptText("Extra mysqldump flags (space-separated, optional)", "--single-transaction --quick", optionalValue, 0)
 	if err != nil {
 		return mysqlSyncConfig{}, err
@@ -189,8 +201,45 @@ func promptMySQLSyncConfig(target ResolvedSyncTarget) (mysqlSyncConfig, error) {
 		TargetHost:        strings.TrimSpace(targetHost),
 		TargetPort:        targetPort,
 		TargetPasswordEnv: strings.TrimSpace(targetPasswordEnv),
+		DatabaseSSH:       databaseSSH,
 		DumpFlags:         strings.Fields(strings.TrimSpace(flagsRaw)),
 	}, nil
+}
+
+func promptDatabaseSSHTarget(target ResolvedSyncTarget) (syncSSHTarget, error) {
+	defaultTarget := defaultDatabaseSSHTarget(target)
+
+	host, err := promptText("Database SSH host override (optional)", "", optionalValue, 0)
+	if err != nil {
+		return syncSSHTarget{}, err
+	}
+	if strings.TrimSpace(host) == "" {
+		return defaultTarget, nil
+	}
+
+	username, err := promptText("Database SSH user", defaultTarget.Username, requiredValue, 0)
+	if err != nil {
+		return syncSSHTarget{}, err
+	}
+
+	port, err := promptPort("Database SSH port", strconv.Itoa(defaultTarget.Port))
+	if err != nil {
+		return syncSSHTarget{}, err
+	}
+
+	return syncSSHTarget{
+		Host:     strings.TrimSpace(host),
+		Username: strings.TrimSpace(username),
+		Port:     port,
+	}, nil
+}
+
+func defaultDatabaseSSHTarget(target ResolvedSyncTarget) syncSSHTarget {
+	return syncSSHTarget{
+		Host:     strings.TrimSpace(target.Host),
+		Username: strings.TrimSpace(target.Username),
+		Port:     target.Port,
+	}
 }
 
 func promptPort(label, defaultValue string) (int, error) {
@@ -230,13 +279,17 @@ func buildRemoteMySQLImportCommand(config mysqlSyncConfig, targetPassword string
 	)
 }
 
+func buildDatabaseSSHArgs(target syncSSHTarget, remoteCommand string) []string {
+	return []string{"-p", strconv.Itoa(target.Port), fmt.Sprintf("%s@%s", target.Username, target.Host), remoteCommand}
+}
+
 func shellQuote(value string) string {
 	escaped := strings.ReplaceAll(value, "'", "'\\''")
 	return "'" + escaped + "'"
 }
 
-func isSameDatabaseTarget(target ResolvedSyncTarget, config mysqlSyncConfig) bool {
-	if !strings.EqualFold(strings.TrimSpace(target.Host), strings.TrimSpace(config.SourceHost)) {
+func isSameDatabaseTarget(config mysqlSyncConfig) bool {
+	if !isSameDatabaseHost(config.SourceHost, config.TargetHost, config.DatabaseSSH.Host) {
 		return false
 	}
 
@@ -244,9 +297,24 @@ func isSameDatabaseTarget(target ResolvedSyncTarget, config mysqlSyncConfig) boo
 		return false
 	}
 
-	if !strings.EqualFold(strings.TrimSpace(config.TargetHost), strings.TrimSpace(config.SourceHost)) {
+	return strings.EqualFold(strings.TrimSpace(config.SourceDatabase), strings.TrimSpace(config.TargetDatabase))
+}
+
+func isSameDatabaseHost(sourceHost string, targetHost string, targetSSHHost string) bool {
+	source := strings.TrimSpace(sourceHost)
+	target := strings.TrimSpace(targetHost)
+	if source == "" || target == "" {
 		return false
 	}
 
-	return strings.EqualFold(strings.TrimSpace(config.SourceDatabase), strings.TrimSpace(config.TargetDatabase))
+	if !isLoopbackHost(target) {
+		return strings.EqualFold(source, target)
+	}
+
+	return strings.EqualFold(source, strings.TrimSpace(targetSSHHost))
+}
+
+func isLoopbackHost(host string) bool {
+	normalized := strings.ToLower(strings.TrimSpace(host))
+	return normalized == "localhost" || normalized == "127.0.0.1" || normalized == "::1"
 }
