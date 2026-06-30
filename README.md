@@ -1,6 +1,33 @@
 ## Intercube CLI
 This command line interface allows you to connect, manage, and synchronize data from your Intercube cubes (servers).
 
+### Installing & updating
+
+Install (or update) with the Go toolchain:
+
+```bash
+go install github.com/intercube/cli/cmd/intercube@latest
+```
+
+Once installed, you can update in place without remembering that command:
+
+```bash
+intercube self-update            # update to the latest version
+intercube self-update v1.0.19    # pin or roll back to a specific version
+intercube self-update --force    # reinstall even if already up to date
+```
+
+`self-update` shells out to `go install`, so it requires the Go toolchain on your
+PATH. It installs to your `$GOBIN` (or `$GOPATH/bin`); if a different copy of
+`intercube` appears earlier on your PATH, the command warns you so you can fix it.
+
+Check your current version any time:
+
+```bash
+intercube version
+intercube --version
+```
+
 ### Onboarding
 
 Use the onboarding command to set up your CLI config interactively:
