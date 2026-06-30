@@ -31,8 +31,9 @@ var Verbose bool
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Use:   "intercube",
-	Short: "Intercube CLI",
+	Use:     "intercube",
+	Short:   "Intercube CLI",
+	Version: currentVersion(),
 	Long: `Intercube CLI for host access, API operations, and environment sync.
 
 Tip: use "intercube ssh" for host access.
