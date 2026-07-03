@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/intercube/cli/util"
+	"github.com/intercube/cli/util/contextconfig"
 	"github.com/mitchellh/go-homedir"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -460,7 +461,7 @@ func resolveOnboardingConfigPath() (string, error) {
 		return "", err
 	}
 
-	return filepath.Join(home, ".intercube.yaml"), nil
+	return contextconfig.ResolveConfigPath(home), nil
 }
 
 func writeOnboardingConfig(path string) error {

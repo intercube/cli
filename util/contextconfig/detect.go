@@ -13,9 +13,24 @@ const (
 	ContextServer     Kind = "server"
 	ContextRepository Kind = "repository"
 	ContextGlobal     Kind = "global"
-
-	defaultUserConfigName = ".intercube.yaml"
 )
+
+// configFileNames lists accepted config basenames in priority order.
+// .yaml is canonical; .yml is accepted as an equivalent alias.
+var configFileNames = []string{".intercube.yaml", ".intercube.yml"}
+
+// ResolveConfigPath returns the path to an existing config file in dir,
+// trying each accepted extension in priority order. If none exist it returns
+// the canonical (.yaml) path so new files are created canonically.
+func ResolveConfigPath(dir string) string {
+	for _, name := range configFileNames {
+		candidate := filepath.Join(dir, name)
+		if fileExists(candidate) {
+			return candidate
+		}
+	}
+	return filepath.Join(dir, configFileNames[0])
+}
 
 type Runtime struct {
 	Kind             Kind
@@ -36,7 +51,7 @@ func DetectRuntime(explicitContext string, workingDir string) Runtime {
 		Kind:           ContextGlobal,
 		Explicit:       explicit,
 		WorkingDir:     strings.TrimSpace(workingDir),
-		UserConfigPath: filepath.Join(home, defaultUserConfigName),
+		UserConfigPath: ResolveConfigPath(home),
 	}
 
 	if explicit {
@@ -93,7 +108,7 @@ func populatePaths(runtime *Runtime) {
 			runtime.RepositoryRoot = repoRoot
 		}
 		if repoRoot != "" {
-			runtime.ActiveConfigPath = filepath.Join(repoRoot, defaultUserConfigName)
+			runtime.ActiveConfigPath = ResolveConfigPath(repoRoot)
 		}
 	default:
 		runtime.ActiveConfigPath = ""
@@ -120,9 +135,10 @@ func findRepositoryConfigRoot(start string) string {
 
 	current := start
 	for {
-		candidate := filepath.Join(current, defaultUserConfigName)
-		if fileExists(candidate) {
-			return current
+		for _, name := range configFileNames {
+			if fileExists(filepath.Join(current, name)) {
+				return current
+			}
 		}
 
 		parent := filepath.Dir(current)
