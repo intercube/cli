@@ -71,8 +71,32 @@ Behavior:
 - always fetches current site inventory at runtime
 - interactive target selection when no argument is passed
 - argument auto-resolves against site ID/domain/server/user when possible
-- stores only file path mappings in config (`sync.files.items`)
-- database details are requested interactively for each run (not persisted)
+- stores file path mappings in config (`sync.files.items`)
+- database connection details are requested interactively for each run (not persisted)
+- database sync uses the selected target server by default, with an optional
+  database SSH host override for clustered setups where files and MySQL live on
+  separate servers
+
+Single-server environments do not need extra sync configuration. For clustered
+targets, add the database SSH defaults to `.intercube.yaml`:
+
+```yaml
+sync:
+  files:
+    items:
+      - source: /var/www/site/
+        target: /var/www/site/
+  database:
+    target_ssh:
+      host: production-sql.example.com
+      user: deploy
+      port: 22
+```
+
+When `sync.database.target_ssh.host` is set, `intercube sync --database`
+pre-fills the database SSH prompt with that host. The `user` and `port` values
+are optional; when omitted, the selected target server's SSH user and port are
+used.
 
 ### Context-aware defaults
 
