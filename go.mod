@@ -11,7 +11,7 @@ require (
 	github.com/spf13/viper v1.21.0
 	github.com/tcnksm/go-httpstat v0.2.0
 	github.com/zalando/go-keyring v0.2.8
-	golang.org/x/mod v0.37.0
+	golang.org/x/mod v0.38.0
 	golang.org/x/term v0.44.0
 )
 
