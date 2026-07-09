@@ -27,6 +27,7 @@ import (
 
 var override = false
 var interactiveMapSetup = false
+var createOriginDir = false
 
 var mapCmd = &cobra.Command{
 	Use:   "map",
@@ -51,7 +52,7 @@ var mapCmd = &cobra.Command{
 		}
 
 		for _, mapping := range config.Mappings {
-			if err := symlink(mapping.From, mapping.To); err != nil {
+			if err := symlink(mapping.From, mapping.To, createOriginDir); err != nil {
 				return err
 			}
 		}
@@ -64,9 +65,10 @@ func init() {
 	rootCmd.AddCommand(mapCmd)
 	mapCmd.PersistentFlags().BoolVarP(&override, "override", "o", false, "Overrides existing destination file")
 	mapCmd.PersistentFlags().BoolVar(&interactiveMapSetup, "interactive", false, "Prompt to create mappings when missing")
+	mapCmd.PersistentFlags().BoolVarP(&createOriginDir, "create-origin-dir", "c", false, "Create missing origin directories before mapping")
 }
 
-func symlink(from string, to string) error {
+func symlink(from string, to string, createMissingOriginDirectory bool) error {
 	resolvedFrom, err := expandHomePath(from)
 	if err != nil {
 		return err
@@ -82,7 +84,15 @@ func symlink(from string, to string) error {
 	}
 
 	if !fileExists(resolvedFrom) {
-		return fmt.Errorf("origin file %v does not exist", resolvedFrom)
+		if createMissingOriginDirectory {
+			if err := os.MkdirAll(resolvedFrom, 0755); err != nil {
+				return fmt.Errorf("unable to create origin directory %v: %w", resolvedFrom, err)
+			}
+
+			fmt.Printf("Created origin directory %v\n", resolvedFrom)
+		} else {
+			return fmt.Errorf("origin file %v does not exist", resolvedFrom)
+		}
 	}
 
 	alreadyMapped, mappedErr := destinationMatchesSource(resolvedFrom, resolvedTo)

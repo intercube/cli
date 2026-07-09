@@ -52,6 +52,7 @@ will prompt only when needed and save values automatically:
 - `intercube ssh` prompts for required login settings
 - `intercube sync` prompts for missing file path mappings
 - `intercube map --interactive` prompts to create mappings when none exist
+- `intercube map --create-origin-dir` / `intercube map -c` creates missing origin directories before mapping
 
 `intercube login` is kept as a deprecated alias and prints a warning to use `intercube ssh`.
 
