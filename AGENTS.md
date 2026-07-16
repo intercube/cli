@@ -1,7 +1,7 @@
 # Agent Guide
 
 This repository contains the Intercube CLI, a Go command-line tool for
-Project-X operational workflows such as onboarding, SSH, sync, organization
+Intercube operational workflows such as onboarding, SSH, sync, organization
 selection, site lookups, and Boundary-backed access.
 
 ## Project Snapshot
