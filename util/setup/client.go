@@ -145,10 +145,6 @@ type Progress struct {
 	FailureMessage string `json:"failuremessage"`
 }
 
-type envelope[T any] struct {
-	Data T `json:"data"`
-}
-
 func NewClient(baseURL, organizationID string, store *authutil.SessionStore, clerk *authutil.ClerkClient) *Client {
 	return &Client{
 		BaseURL: strings.TrimRight(strings.TrimSpace(baseURL), "/"),
@@ -162,43 +158,43 @@ func NewClient(baseURL, organizationID string, store *authutil.SessionStore, cle
 }
 
 func (c *Client) AnalyzeRepository(ctx context.Context, request RepositoryAnalysisRequest) (*RepositoryAnalysis, error) {
-	var response envelope[RepositoryAnalysis]
+	var response RepositoryAnalysis
 	if err := c.doJSON(ctx, http.MethodPost, "/api/v2/setups/repository-analysis", request, &response); err != nil {
 		return nil, err
 	}
-	return &response.Data, nil
+	return &response, nil
 }
 
 func (c *Client) Quote(ctx context.Context, request QuoteRequest) (*QuoteResponse, error) {
-	var response envelope[QuoteResponse]
+	var response QuoteResponse
 	if err := c.doJSON(ctx, http.MethodPost, "/api/v2/setups/quote", request, &response); err != nil {
 		return nil, err
 	}
-	return &response.Data, nil
+	return &response, nil
 }
 
 func (c *Client) Create(ctx context.Context, request CreateRequest) (*Progress, error) {
-	var response envelope[Progress]
+	var response Progress
 	if err := c.doJSON(ctx, http.MethodPost, "/api/v2/setups", request, &response); err != nil {
 		return nil, err
 	}
-	return &response.Data, nil
+	return &response, nil
 }
 
 func (c *Client) Progress(ctx context.Context, intentID string) (*Progress, error) {
-	var response envelope[Progress]
+	var response Progress
 	if err := c.doJSON(ctx, http.MethodGet, "/api/v2/setups/"+intentID, nil, &response); err != nil {
 		return nil, err
 	}
-	return &response.Data, nil
+	return &response, nil
 }
 
 func (c *Client) Retry(ctx context.Context, intentID string) (*Progress, error) {
-	var response envelope[Progress]
+	var response Progress
 	if err := c.doJSON(ctx, http.MethodPost, "/api/v2/setups/"+intentID, nil, &response); err != nil {
 		return nil, err
 	}
-	return &response.Data, nil
+	return &response, nil
 }
 
 func (c *Client) doJSON(ctx context.Context, method, path string, payload any, out any) error {

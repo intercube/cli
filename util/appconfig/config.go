@@ -13,7 +13,6 @@ var ClerkAudience = ""
 var ClerkScopes = "openid profile email offline_access public_metadata"
 var ClerkCallbackPort = "8976"
 var InventoryAPIBaseURL = "https://inventory-nexus.dev-c8s.intercube.dev/"
-var DashboardAPIBaseURL = "https://dashboard.intercube.io/"
 var OrganizationID = ""
 var SiteID = ""
 var ServerID = ""
@@ -25,7 +24,6 @@ const (
 	EnvClerkScopes       = "INTERCUBE_AUTH_CLERK_SCOPES"
 	EnvClerkCallbackPort = "INTERCUBE_AUTH_CLERK_CALLBACK_PORT"
 	EnvInventoryAPIURL   = "INTERCUBE_INVENTORY_API_BASE_URL"
-	EnvDashboardAPIURL   = "INTERCUBE_DASHBOARD_API_BASE_URL"
 	EnvOrganizationID    = "INTERCUBE_ORGANIZATION_ID"
 	EnvOrganizationIDAlt = "INTERCUBE_ORG_ID"
 	EnvSiteID            = "INTERCUBE_SITE_ID"
@@ -57,10 +55,6 @@ func LoadFromEnv() {
 		InventoryAPIBaseURL = value
 	}
 
-	if value := strings.TrimSpace(os.Getenv(EnvDashboardAPIURL)); value != "" {
-		DashboardAPIBaseURL = value
-	}
-
 	if value := strings.TrimSpace(os.Getenv(EnvOrganizationIDAlt)); value != "" {
 		OrganizationID = value
 	} else if value := strings.TrimSpace(os.Getenv(EnvOrganizationID)); value != "" {
@@ -74,14 +68,6 @@ func LoadFromEnv() {
 	if value := strings.TrimSpace(os.Getenv(EnvServerID)); value != "" {
 		ServerID = value
 	}
-}
-
-func ValidateDashboard() error {
-	if strings.TrimSpace(DashboardAPIBaseURL) == "" {
-		return fmt.Errorf("missing dashboard config: DashboardAPIBaseURL")
-	}
-
-	return nil
 }
 
 func ValidateClerk() error {

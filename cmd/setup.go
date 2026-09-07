@@ -256,7 +256,7 @@ func newSetupClient(cmd *cobra.Command, organizationOverride string) (*setupapi.
 	if err := appconfig.ValidateClerk(); err != nil {
 		return nil, "", err
 	}
-	if err := appconfig.ValidateDashboard(); err != nil {
+	if err := appconfig.ValidateInventory(); err != nil {
 		return nil, "", err
 	}
 	store, err := authutil.NewSessionStore("intercube-cli")
@@ -274,7 +274,7 @@ func newSetupClient(cmd *cobra.Command, organizationOverride string) (*setupapi.
 		Issuer: appconfig.ClerkIssuer, ClientID: appconfig.ClerkClientID, Audience: appconfig.ClerkAudience,
 		Scopes: appconfig.ClerkScopes, CallbackPort: appconfig.ParsedCallbackPort(),
 	}
-	client := setupapi.NewClient(appconfig.DashboardAPIBaseURL, organizationID, store, clerk)
+	client := setupapi.NewClient(appconfig.InventoryAPIBaseURL, organizationID, store, clerk)
 	githubToken, tokenErr := setupapi.LoadGitHubToken()
 	if tokenErr != nil {
 		return nil, "", fmt.Errorf("unable to load GitHub authorization: %w", tokenErr)
@@ -291,14 +291,10 @@ func analyzeUntilLinked(cmd *cobra.Command, client *setupapi.Client, request set
 	if analysis.GitHubLinked {
 		return analysis, nil
 	}
-	if analysis.GitHubAuthorizationRequired {
+	if analysis.GitHubAuthorizationRequired && analysis.GitHubClientID != "" {
 		if runtimeContext.NonInteractive {
 			return nil, errors.New("GitHub authorization is required; rerun interactively to connect the Intercube GitHub App")
 		}
-		if analysis.GitHubClientID == "" {
-			return nil, errors.New("GitHub App device authorization is not configured in Dashboard")
-		}
-
 		authorization, err := setupapi.StartGitHubDeviceAuthorization(cmd.Context(), analysis.GitHubClientID)
 		if err != nil {
 			return nil, err
