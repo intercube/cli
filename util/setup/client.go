@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -183,7 +184,7 @@ func (c *Client) Create(ctx context.Context, request CreateRequest) (*Progress, 
 
 func (c *Client) Progress(ctx context.Context, intentID string) (*Progress, error) {
 	var response Progress
-	if err := c.doJSON(ctx, http.MethodGet, "/api/v2/setups/"+intentID, nil, &response); err != nil {
+	if err := c.doJSON(ctx, http.MethodGet, c.intentPath(intentID), nil, &response); err != nil {
 		return nil, err
 	}
 	return &response, nil
@@ -191,10 +192,18 @@ func (c *Client) Progress(ctx context.Context, intentID string) (*Progress, erro
 
 func (c *Client) Retry(ctx context.Context, intentID string) (*Progress, error) {
 	var response Progress
-	if err := c.doJSON(ctx, http.MethodPost, "/api/v2/setups/"+intentID, nil, &response); err != nil {
+	if err := c.doJSON(ctx, http.MethodPost, c.intentPath(intentID), nil, &response); err != nil {
 		return nil, err
 	}
 	return &response, nil
+}
+
+func (c *Client) intentPath(intentID string) string {
+	path := "/api/v2/setups/" + url.PathEscape(intentID)
+	if c.OrgID == "" {
+		return path
+	}
+	return path + "?organizationId=" + url.QueryEscape(c.OrgID)
 }
 
 func (c *Client) doJSON(ctx context.Context, method, path string, payload any, out any) error {
