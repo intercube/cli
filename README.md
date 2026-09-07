@@ -56,6 +56,41 @@ will prompt only when needed and save values automatically:
 
 `intercube login` is kept as a deprecated alias and prints a warning to use `intercube ssh`.
 
+### Set up a repository
+
+Run the setup wizard from a GitHub repository to create its first Intercube server and site:
+
+```bash
+intercube setup
+```
+
+The wizard detects the application, recommends a runtime and server plan, suggests an available `mycube.dev` domain,
+and shows the exact monthly price before asking for confirmation. Press Enter to accept a suggested value. You may use
+your own domain instead, but custom `mycube.dev` names cannot be claimed; Intercube keeps the generated managed domain
+as an alias.
+
+If GitHub is not linked yet, the wizard opens GitHub's device authorization flow. If the Intercube GitHub App still
+needs repository access, it opens the installation page and then continues the setup. No personal access token is
+required.
+
+Setup is asynchronous. The CLI saves the intent and stable server/site identifiers in the repository's
+`.intercube.yaml`, polls until it is ready, and resumes an interrupted run the next time you invoke the command. A
+failed setup is never retried automatically; rerun `intercube setup` and confirm the retry.
+
+One repository can contain multiple environments, each backed by its own server, for example:
+
+```bash
+intercube setup --environment production --branch master
+intercube setup --environment development --branch develop
+```
+
+On a configured repository, `intercube setup` reports the existing environment and offers to configure another one.
+The committed repository config contains deployment metadata only, never credentials. User authentication and private
+configuration remain user-scoped.
+
+Platform administrators may additionally create a site on an existing ready server with `--server` and may use
+`--no-charge`. Regular organization users can only create a paid new server with its initial site.
+
 ### Sync
 
 Use sync from a source environment host:
