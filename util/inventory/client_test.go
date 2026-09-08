@@ -37,7 +37,7 @@ func TestPagedSiteResponseMatchesInventoryAPIShape(t *testing.T) {
 	}
 
 	site := response.Items[0]
-	if site.ID != "58" || site.Username != "shop" || site.MainDomain != "shop.example.com" || site.ServerID != "9" || site.ServerName != "web-01" {
+	if site.ID != "58" || site.Username != "shop" || site.MainDomain != "shop.example.com" || !site.IsProduction || site.ServerID != "9" || site.ServerName != "web-01" {
 		t.Fatalf("unexpected decoded site: %+v", site)
 	}
 
