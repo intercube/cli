@@ -21,6 +21,11 @@ func TestSaveProjectConfigPreservesOtherProjectSettings(t *testing.T) {
 			"production": {
 				Branch: "main", Domain: "shop.example.com", ManagedDomain: "quiet-river.mycube.dev",
 				IntentID: "intent-1", IntentRevision: "rev-1", IdempotencyKey: "setup-1", Status: "validated",
+				Prepared: &PreparedSetup{
+					Repository: "intercube/shop", Framework: "wordpress", Runtime: "php", RuntimeVersion: "8.4",
+					PlanKey: "medium", PlanLabel: "Medium", PlanCores: 4, PlanMemoryGB: 8,
+					PriceAmount: 99, PriceCurrency: "EUR",
+				},
 			},
 		},
 	}
@@ -43,5 +48,8 @@ func TestSaveProjectConfigPreservesOtherProjectSettings(t *testing.T) {
 	}
 	if loaded.Environments["production"].ManagedDomain != "quiet-river.mycube.dev" {
 		t.Fatalf("setup environment did not round-trip: %#v", loaded.Environments["production"])
+	}
+	if loaded.Environments["production"].Prepared == nil || loaded.Environments["production"].Prepared.PlanKey != "medium" {
+		t.Fatalf("prepared quote did not round-trip: %#v", loaded.Environments["production"].Prepared)
 	}
 }

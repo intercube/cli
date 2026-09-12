@@ -89,7 +89,7 @@ func runSetup(cmd *cobra.Command, _ []string) error {
 
 	currentBranch, _ := gitOutputAt(cmd.Context(), repositoryRoot, "branch", "--show-current")
 	analysis, err := analyzeUntilLinked(cmd, client, setupapi.RepositoryAnalysisRequest{
-		Owner: owner, Repository: repository, Directory: setupDirectory,
+		Owner: owner, Repository: repository, Branch: strings.TrimSpace(setupBranch), Directory: setupDirectory,
 	})
 	if err != nil {
 		return err
@@ -216,6 +216,7 @@ func runSetup(cmd *cobra.Command, _ []string) error {
 		IdempotencyKey: idempotencyKey,
 		NoCharge:       setupNoCharge,
 		Status:         "validated",
+		Prepared:       preparedSetupSnapshot(analysis, quoteResponse, setupDirectory, setupServerID),
 	}
 	if err := setupapi.SaveProjectConfig(configPath, projectConfig); err != nil {
 		return err
@@ -381,10 +382,17 @@ func handleExistingSetups(
 		}
 
 		if setupEnvironment == name || setupYes || (!runtimeContext.NonInteractive && mustConfirm("Resume the interrupted "+name+" setup?", true)) {
+			if preparedSetupOptionsChanged(cmd, config, environment) {
+				applyPreparedSetupDefaults(cmd, config, name, environment)
+				delete(config.Environments, name)
+				fmt.Println("Setup options changed; preparing a new configuration and quote.")
+				return false, nil
+			}
 			if progress.SetupStatus == "validated" {
 				if environment.IntentRevision == "" || environment.IdempotencyKey == "" {
 					return true, errors.New("prepared setup is missing resume metadata; remove that environment from .intercube.yaml and run setup again")
 				}
+				printPreparedSetupSummary(name, config, environment)
 				if !setupYes {
 					if runtimeContext.NonInteractive {
 						return true, errors.New("non-interactive setup requires --yes to confirm the prepared setup")
@@ -412,8 +420,11 @@ func handleExistingSetups(
 					return true, errors.New("setup failed; rerun interactively to explicitly retry it")
 				}
 				retry, err := promptConfirm("Retry this failed setup?", false)
-				if err != nil || !retry {
+				if err != nil {
 					return true, err
+				}
+				if !retry {
+					return true, errors.New("setup failed")
 				}
 				progress, err = client.Retry(cmd.Context(), environment.IntentID)
 				if err != nil {
@@ -466,8 +477,11 @@ func followSetup(
 				return errors.New("setup failed")
 			}
 			retry, err := promptConfirm("Retry this setup?", false)
-			if err != nil || !retry {
+			if err != nil {
 				return err
+			}
+			if !retry {
+				return errors.New("setup failed")
 			}
 			progress, err = client.Retry(cmd.Context(), progress.ID)
 			if err != nil {
@@ -535,6 +549,119 @@ func printSetupSummary(
 		fmt.Printf("  Price:       %.2f %s/month\n", quote.Quote.Amount, quote.Quote.Currency)
 	}
 	fmt.Println()
+}
+
+func preparedSetupSnapshot(
+	analysis *setupapi.RepositoryAnalysis,
+	quote *setupapi.QuoteResponse,
+	directory string,
+	serverID int,
+) *setupapi.PreparedSetup {
+	prepared := &setupapi.PreparedSetup{
+		Repository:     analysis.Repository,
+		Directory:      directory,
+		Framework:      analysis.Framework,
+		Runtime:        analysis.Runtime,
+		RuntimeVersion: analysis.RuntimeVersion,
+		ServerID:       serverID,
+		PriceAmount:    quote.Quote.Amount,
+		PriceCurrency:  quote.Quote.Currency,
+	}
+	if profile := quote.Intent.Classification.ServerProfile; profile != nil {
+		prepared.PlanKey = profile.Key
+		prepared.PlanLabel = profile.Label
+		prepared.PlanCores = profile.Cores
+		prepared.PlanMemoryGB = profile.MemoryGB
+	}
+	return prepared
+}
+
+func printPreparedSetupSummary(name string, config *setupapi.ProjectConfig, environment setupapi.Environment) {
+	prepared := environment.Prepared
+	if prepared == nil {
+		prepared = &setupapi.PreparedSetup{Repository: config.Repository.URL, Directory: config.Repository.Directory}
+	}
+
+	fmt.Println("\nPrepared setup summary")
+	fmt.Printf("  Repository:  %s\n", prepared.Repository)
+	fmt.Printf("  Branch:      %s\n", environment.Branch)
+	if prepared.Directory != "" {
+		fmt.Printf("  Directory:   %s\n", prepared.Directory)
+	}
+	fmt.Printf("  Environment: %s\n", name)
+	if prepared.Framework != "" {
+		fmt.Printf("  Application: %s", prepared.Framework)
+		if prepared.Runtime != "" {
+			fmt.Printf(" (%s %s)", prepared.Runtime, prepared.RuntimeVersion)
+		}
+		fmt.Println()
+	}
+	fmt.Printf("  Domain:      %s\n", environment.Domain)
+	if !strings.EqualFold(environment.Domain, environment.ManagedDomain) {
+		fmt.Printf("  Managed URL: %s\n", environment.ManagedDomain)
+	}
+	if prepared.ServerID > 0 {
+		fmt.Printf("  Server:      existing server %d\n", prepared.ServerID)
+	} else if prepared.PlanKey != "" {
+		label := prepared.PlanLabel
+		if label == "" {
+			label = prepared.PlanKey
+		}
+		fmt.Printf("  Plan:        %s (%d vCPU, %d GB RAM)\n", label, prepared.PlanCores, prepared.PlanMemoryGB)
+	}
+	if environment.NoCharge {
+		fmt.Println("  Price:       no charge (platform admin)")
+	} else if prepared.PriceCurrency != "" {
+		fmt.Printf("  Price:       %.2f %s/month\n", prepared.PriceAmount, prepared.PriceCurrency)
+	} else {
+		fmt.Println("  Price:       unavailable; change a setup option to prepare a new quote")
+	}
+	fmt.Println()
+}
+
+func preparedSetupOptionsChanged(cmd *cobra.Command, config *setupapi.ProjectConfig, environment setupapi.Environment) bool {
+	prepared := environment.Prepared
+	if cmd.Flags().Changed("branch") && strings.TrimSpace(setupBranch) != environment.Branch {
+		return true
+	}
+	if cmd.Flags().Changed("domain") && strings.TrimSpace(setupDomain) != environment.Domain {
+		return true
+	}
+	if cmd.Flags().Changed("directory") && strings.TrimSpace(setupDirectory) != config.Repository.Directory {
+		return true
+	}
+	if cmd.Flags().Changed("plan") && (prepared == nil || strings.TrimSpace(setupPlan) != prepared.PlanKey) {
+		return true
+	}
+	if cmd.Flags().Changed("server") && (prepared == nil || setupServerID != prepared.ServerID) {
+		return true
+	}
+	return cmd.Flags().Changed("no-charge") && setupNoCharge != environment.NoCharge
+}
+
+func applyPreparedSetupDefaults(cmd *cobra.Command, config *setupapi.ProjectConfig, name string, environment setupapi.Environment) {
+	setupEnvironment = name
+	if !cmd.Flags().Changed("branch") {
+		setupBranch = environment.Branch
+	}
+	if !cmd.Flags().Changed("domain") {
+		setupDomain = environment.Domain
+	}
+	if !cmd.Flags().Changed("directory") {
+		setupDirectory = config.Repository.Directory
+	}
+	if environment.Prepared == nil {
+		return
+	}
+	if !cmd.Flags().Changed("plan") {
+		setupPlan = environment.Prepared.PlanKey
+	}
+	if !cmd.Flags().Changed("server") {
+		setupServerID = environment.Prepared.ServerID
+	}
+	if !cmd.Flags().Changed("no-charge") {
+		setupNoCharge = environment.NoCharge
+	}
 }
 
 func parseGitHubRemote(remote string) (string, string, error) {

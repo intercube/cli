@@ -21,17 +21,33 @@ type ProjectRepository struct {
 }
 
 type Environment struct {
-	Branch         string `yaml:"branch"`
-	Domain         string `yaml:"domain"`
-	ManagedDomain  string `yaml:"managed_domain"`
-	IntentID       string `yaml:"intent_id"`
-	IntentRevision string `yaml:"intent_revision"`
-	QuoteID        string `yaml:"quote_id,omitempty"`
-	IdempotencyKey string `yaml:"idempotency_key"`
-	NoCharge       bool   `yaml:"no_charge,omitempty"`
-	ServerID       int    `yaml:"server_id,omitempty"`
-	SiteID         int    `yaml:"site_id,omitempty"`
-	Status         string `yaml:"status"`
+	Branch         string         `yaml:"branch"`
+	Domain         string         `yaml:"domain"`
+	ManagedDomain  string         `yaml:"managed_domain"`
+	IntentID       string         `yaml:"intent_id"`
+	IntentRevision string         `yaml:"intent_revision"`
+	QuoteID        string         `yaml:"quote_id,omitempty"`
+	IdempotencyKey string         `yaml:"idempotency_key"`
+	NoCharge       bool           `yaml:"no_charge,omitempty"`
+	ServerID       int            `yaml:"server_id,omitempty"`
+	SiteID         int            `yaml:"site_id,omitempty"`
+	Status         string         `yaml:"status"`
+	Prepared       *PreparedSetup `yaml:"prepared,omitempty"`
+}
+
+type PreparedSetup struct {
+	Repository     string  `yaml:"repository"`
+	Directory      string  `yaml:"directory,omitempty"`
+	Framework      string  `yaml:"framework"`
+	Runtime        string  `yaml:"runtime,omitempty"`
+	RuntimeVersion string  `yaml:"runtime_version,omitempty"`
+	PlanKey        string  `yaml:"plan_key,omitempty"`
+	PlanLabel      string  `yaml:"plan_label,omitempty"`
+	PlanCores      int     `yaml:"plan_cores,omitempty"`
+	PlanMemoryGB   int     `yaml:"plan_memory_gb,omitempty"`
+	ServerID       int     `yaml:"server_id,omitempty"`
+	PriceAmount    float64 `yaml:"price_amount,omitempty"`
+	PriceCurrency  string  `yaml:"price_currency,omitempty"`
 }
 
 func LoadProjectConfig(path string) (*ProjectConfig, error) {
