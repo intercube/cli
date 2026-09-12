@@ -1,9 +1,9 @@
 module github.com/intercube/cli
 
-go 1.25.7
+go 1.26.4
 
 require (
-	github.com/hashicorp/boundary/api v0.0.61
+	github.com/hashicorp/boundary/api v0.0.62
 	github.com/manifoldco/promptui v0.9.0
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/olekukonko/tablewriter v1.1.4
