@@ -164,24 +164,22 @@ func runExistingSiteSetup(
 		PipelineProjectID: created.ID,
 		Status:            "pipeline_pending",
 	}
-	if err := setupapi.SaveProjectConfig(configPath, projectConfig); err != nil {
-		return fmt.Errorf("pipeline project %d was created, but %s could not be updated: %w", created.ID, configPath, err)
-	}
+	configErr := setupapi.SaveProjectConfig(configPath, projectConfig)
 
 	fmt.Println("Synchronizing the GoCD project...")
 	syncResult, err := pipelineClient.SyncProject(cmd.Context(), created.ID)
 	if err != nil {
-		return fmt.Errorf("pipeline project %d was created, but GoCD synchronization failed: %w", created.ID, err)
+		return existingSiteRecoveryError(created.ID, configPath, configErr, fmt.Errorf("immediate GoCD synchronization failed: %w", err))
 	}
 	if syncResult.SynchronizedProjects != 1 {
-		return fmt.Errorf("pipeline project %d was created, but GoCD did not synchronize it; manage the project in Dashboard", created.ID)
+		return existingSiteRecoveryError(created.ID, configPath, configErr, errors.New("GoCD did not synchronize it immediately"))
 	}
 
 	configured := projectConfig.Environments[environment]
 	configured.Status = "ready"
 	projectConfig.Environments[environment] = configured
 	if err := setupapi.SaveProjectConfig(configPath, projectConfig); err != nil {
-		return err
+		return fmt.Errorf("pipeline project %d was created and synchronized, but %s could not be updated; inspect the project in Dashboard: %w", created.ID, configPath, err)
 	}
 	fmt.Printf("Setup complete. Site %s now deploys %s from %s", selected.ID, analysis.Repository, branch)
 	if setupDirectory != "" {
@@ -242,10 +240,11 @@ func selectExistingSite(sites []inventory.SiteServer) (*inventory.SiteServer, er
 {{ "Username:" | faint }}	{{ .Site.Username }}`,
 	}
 	prompt := promptui.Select{
-		Label:     "Search site to connect",
-		Items:     options,
-		Templates: templates,
-		Size:      selectSize(len(options)),
+		Label:             "Search site to connect",
+		Items:             options,
+		Templates:         templates,
+		Size:              selectSize(len(options)),
+		StartInSearchMode: true,
 		Searcher: func(input string, index int) bool {
 			return existingSiteOptionMatches(options[index], input)
 		},
@@ -256,6 +255,18 @@ func selectExistingSite(sites []inventory.SiteServer) (*inventory.SiteServer, er
 		return nil, err
 	}
 	return &options[index].Site, nil
+}
+
+func existingSiteRecoveryError(projectID int, configPath string, configErr, syncErr error) error {
+	message := fmt.Sprintf(
+		"pipeline project %d was created, but %v; Nexus will retry synchronization automatically, and the project can be inspected in Dashboard",
+		projectID,
+		syncErr,
+	)
+	if configErr != nil {
+		message += fmt.Sprintf("; %s also could not be updated: %v", configPath, configErr)
+	}
+	return errors.New(message)
 }
 
 func existingSiteOptionMatches(option existingSiteOption, input string) bool {

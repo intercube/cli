@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"errors"
+	"strings"
 	"testing"
 
 	"github.com/intercube/cli/util/inventory"
@@ -165,5 +167,20 @@ func TestWorkflowTemplateForAnalysisUsesLatestDetectedWorkflow(t *testing.T) {
 	}
 	if template.ID != 2 {
 		t.Fatalf("template id = %d, want 2", template.ID)
+	}
+}
+
+func TestExistingSiteRecoveryErrorExplainsAutomaticRetryAndConfigFailure(t *testing.T) {
+	err := existingSiteRecoveryError(91, "/project/.intercube.yaml", errors.New("read-only filesystem"), errors.New("GoCD unavailable"))
+	message := err.Error()
+	for _, expected := range []string{
+		"pipeline project 91 was created",
+		"Nexus will retry synchronization automatically",
+		"inspected in Dashboard",
+		".intercube.yaml also could not be updated",
+	} {
+		if !strings.Contains(message, expected) {
+			t.Fatalf("recovery error %q does not include %q", message, expected)
+		}
 	}
 }
