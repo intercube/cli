@@ -13,6 +13,7 @@ var ClerkAudience = ""
 var ClerkScopes = "openid profile email offline_access public_metadata"
 var ClerkCallbackPort = "8976"
 var InventoryAPIBaseURL = "https://inventory-nexus.dev-c8s.intercube.dev/"
+var PipelineAPIBaseURL = "https://pipeline-management-nexus.dev-c8s.intercube.dev/"
 var OrganizationID = ""
 var SiteID = ""
 var ServerID = ""
@@ -24,6 +25,7 @@ const (
 	EnvClerkScopes       = "INTERCUBE_AUTH_CLERK_SCOPES"
 	EnvClerkCallbackPort = "INTERCUBE_AUTH_CLERK_CALLBACK_PORT"
 	EnvInventoryAPIURL   = "INTERCUBE_INVENTORY_API_BASE_URL"
+	EnvPipelineAPIURL    = "INTERCUBE_PIPELINE_API_BASE_URL"
 	EnvOrganizationID    = "INTERCUBE_ORGANIZATION_ID"
 	EnvOrganizationIDAlt = "INTERCUBE_ORG_ID"
 	EnvSiteID            = "INTERCUBE_SITE_ID"
@@ -53,6 +55,10 @@ func LoadFromEnv() {
 
 	if value := strings.TrimSpace(os.Getenv(EnvInventoryAPIURL)); value != "" {
 		InventoryAPIBaseURL = value
+	}
+
+	if value := strings.TrimSpace(os.Getenv(EnvPipelineAPIURL)); value != "" {
+		PipelineAPIBaseURL = value
 	}
 
 	if value := strings.TrimSpace(os.Getenv(EnvOrganizationIDAlt)); value != "" {
@@ -90,6 +96,14 @@ func ValidateClerk() error {
 func ValidateInventory() error {
 	if strings.TrimSpace(InventoryAPIBaseURL) == "" {
 		return fmt.Errorf("missing internal inventory config: InventoryAPIBaseURL")
+	}
+
+	return nil
+}
+
+func ValidatePipeline() error {
+	if strings.TrimSpace(PipelineAPIBaseURL) == "" {
+		return fmt.Errorf("missing internal pipeline config: PipelineAPIBaseURL")
 	}
 
 	return nil

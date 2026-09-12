@@ -25,11 +25,19 @@ type Client struct {
 }
 
 type SiteServer struct {
-	ID         string `json:"id"`
-	Username   string `json:"username"`
-	MainDomain string `json:"maindomain"`
-	ServerID   string `json:"serverid"`
-	ServerName string `json:"servername"`
+	ID           string `json:"id"`
+	Username     string `json:"username"`
+	MainDomain   string `json:"maindomain"`
+	IsProduction bool   `json:"isproduction"`
+	ServerID     string `json:"serverid"`
+	ServerName   string `json:"servername"`
+}
+
+type SiteDetail struct {
+	ID          string `json:"id"`
+	Username    string `json:"username"`
+	MainDomain  string `json:"maindomain"`
+	Environment string `json:"environment"`
 }
 
 type AuthorizationKey struct {
@@ -141,6 +149,15 @@ func (c *Client) ListSites(ctx context.Context) ([]SiteServer, error) {
 	}
 
 	return sites, nil
+}
+
+func (c *Client) GetSite(ctx context.Context, serverID, siteID string) (*SiteDetail, error) {
+	var site SiteDetail
+	path := fmt.Sprintf("/site/%s/%s", serverID, siteID)
+	if err := c.doJSON(ctx, http.MethodGet, path, nil, &site); err != nil {
+		return nil, err
+	}
+	return &site, nil
 }
 
 func (c *Client) ListSiteAuthorizationKeys(ctx context.Context, siteID string) ([]AuthorizationKey, error) {

@@ -81,7 +81,7 @@ func (c *ClerkClient) Login(ctx context.Context) (*Session, error) {
 		return nil, err
 	}
 
-	if err := openBrowser(authURL); err != nil {
+	if err := OpenBrowser(authURL); err != nil {
 		return nil, err
 	}
 
@@ -378,7 +378,7 @@ func pkceChallenge(verifier string) string {
 	return base64.RawURLEncoding.EncodeToString(hash[:])
 }
 
-func openBrowser(url string) error {
+func OpenBrowser(url string) error {
 	var command *exec.Cmd
 	if runtime.GOOS == "darwin" {
 		command = exec.Command("open", url)
