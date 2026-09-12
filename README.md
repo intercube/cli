@@ -88,6 +88,22 @@ On a configured repository, `intercube setup` reports the existing environment a
 The committed repository config contains deployment metadata only, never credentials. User authentication and private
 configuration remain user-scoped.
 
+To connect a repository to a site that already exists but has no pipeline project, use the searchable site selector:
+
+```bash
+intercube setup --existing-site
+intercube setup -s -b develop
+intercube setup -s -b develop -d wordpress
+```
+
+The selected site is enabled for CI/CD, connected to the detected workflow, and synchronized to GoCD. GoCD starts the
+first deployment and follows later commits on the selected branch. Sites that already have a pipeline project are not
+changed; manage those projects in Dashboard instead. Existing sites are deliberately selector-only, so there is no
+direct numeric `--site` flag.
+
+Setup supports `-e` for `--environment`, `-b` for `--branch`, `-d` for `--directory`, `-p` for `--plan`, `-o` for
+`--organization`, `-s` for `--existing-site`, and `-y` for `--yes`.
+
 Platform administrators may additionally create a site on an existing ready server with `--server` and may use
 `--no-charge`. Regular organization users can only create a paid new server with its initial site.
 

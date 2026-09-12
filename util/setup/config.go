@@ -21,18 +21,19 @@ type ProjectRepository struct {
 }
 
 type Environment struct {
-	Branch         string         `yaml:"branch"`
-	Domain         string         `yaml:"domain"`
-	ManagedDomain  string         `yaml:"managed_domain"`
-	IntentID       string         `yaml:"intent_id"`
-	IntentRevision string         `yaml:"intent_revision"`
-	QuoteID        string         `yaml:"quote_id,omitempty"`
-	IdempotencyKey string         `yaml:"idempotency_key"`
-	NoCharge       bool           `yaml:"no_charge,omitempty"`
-	ServerID       int            `yaml:"server_id,omitempty"`
-	SiteID         int            `yaml:"site_id,omitempty"`
-	Status         string         `yaml:"status"`
-	Prepared       *PreparedSetup `yaml:"prepared,omitempty"`
+	Branch            string         `yaml:"branch"`
+	Domain            string         `yaml:"domain"`
+	ManagedDomain     string         `yaml:"managed_domain,omitempty"`
+	IntentID          string         `yaml:"intent_id,omitempty"`
+	IntentRevision    string         `yaml:"intent_revision,omitempty"`
+	QuoteID           string         `yaml:"quote_id,omitempty"`
+	IdempotencyKey    string         `yaml:"idempotency_key,omitempty"`
+	NoCharge          bool           `yaml:"no_charge,omitempty"`
+	ServerID          int            `yaml:"server_id,omitempty"`
+	SiteID            int            `yaml:"site_id,omitempty"`
+	PipelineProjectID int            `yaml:"pipeline_project_id,omitempty"`
+	Status            string         `yaml:"status"`
+	Prepared          *PreparedSetup `yaml:"prepared,omitempty"`
 }
 
 type PreparedSetup struct {
