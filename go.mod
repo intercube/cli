@@ -1,6 +1,6 @@
 module github.com/intercube/cli
 
-go 1.25.7
+go 1.26.0
 
 require (
 	github.com/hashicorp/boundary/api v0.0.61
@@ -12,7 +12,7 @@ require (
 	github.com/tcnksm/go-httpstat v0.2.0
 	github.com/zalando/go-keyring v0.2.8
 	go.yaml.in/yaml/v3 v3.0.4
-	golang.org/x/mod v0.37.0
+	golang.org/x/mod v0.41.0
 	golang.org/x/term v0.44.0
 )
 
