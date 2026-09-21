@@ -6,7 +6,7 @@ require (
 	github.com/hashicorp/boundary/api v0.0.61
 	github.com/manifoldco/promptui v0.9.0
 	github.com/mitchellh/go-homedir v1.1.0
-	github.com/olekukonko/tablewriter v1.1.4
+	github.com/olekukonko/tablewriter v1.1.5
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/viper v1.21.0
 	github.com/tcnksm/go-httpstat v0.2.0
