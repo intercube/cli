@@ -17,330 +17,29 @@ import (
 	"github.com/manifoldco/promptui"
 )
 
-const defaultBoundaryURL = "https://controller.boundary.intercube.cloud"
-
 var onboardingCmd = &cobra.Command{
-	Use:   "onboarding",
-	Short: "Guides first-time setup for Intercube CLI",
-	Run: func(cmd *cobra.Command, args []string) {
-		runOnboarding()
-	},
-}
-
-func runOnboarding() {
-	configPath, err := resolveOnboardingConfigPath()
-	if err != nil {
-		panic(err)
-	}
-
-	boundaryPath, boundaryErr := exec.LookPath("boundary")
-	boundaryInstalled := boundaryErr == nil
-
-	rsyncPath, rsyncErr := exec.LookPath("rsync")
-	rsyncInstalled := rsyncErr == nil
-
-	fmt.Println("Intercube CLI onboarding")
-	fmt.Println()
-	fmt.Printf("Config file: %s\n", configPath)
-
-	if boundaryInstalled {
-		fmt.Printf("Boundary CLI: installed (%s)\n", boundaryPath)
-	} else {
-		fmt.Println("Boundary CLI: not found (required for `intercube ssh`)")
-	}
-
-	if rsyncInstalled {
-		fmt.Printf("rsync: installed (%s)\n", rsyncPath)
-	} else {
-		fmt.Println("rsync: not found (required for `intercube sync --files`)")
-	}
-
-	fmt.Println()
-	configureNow, err := chooseYesNo("Configure login defaults now?")
-	if err != nil {
-		fmt.Printf("Onboarding cancelled: %v\n", err)
-		return
-	}
-
-	if !configureNow {
-		fmt.Println("Skipped configuration. You can run `intercube onboarding` any time.")
-		return
-	}
-
-	username, err := promptText(
-		"Boundary username",
-		config.Login.Username,
-		requiredValue,
-		0,
-	)
-	if err != nil {
-		fmt.Printf("Onboarding cancelled: %v\n", err)
-		return
-	}
-
-	passwordLabel := "Boundary password"
-	passwordValidator := requiredValue
-	if strings.TrimSpace(config.Login.Password) != "" {
-		passwordLabel = "Boundary password (leave blank to keep current)"
-		passwordValidator = optionalValue
-	}
-
-	password, err := promptText(
-		passwordLabel,
-		"",
-		passwordValidator,
-		'*',
-	)
-	if err != nil {
-		fmt.Printf("Onboarding cancelled: %v\n", err)
-		return
-	}
-	if strings.TrimSpace(password) == "" {
-		password = config.Login.Password
-	}
-
-	scope, err := promptText(
-		"Boundary scope",
-		config.Login.Scope,
-		requiredValue,
-		0,
-	)
-	if err != nil {
-		fmt.Printf("Onboarding cancelled: %v\n", err)
-		return
-	}
-
-	authMethod, err := promptText(
-		"Boundary auth method ID",
-		config.Login.AuthMethod,
-		requiredValue,
-		0,
-	)
-	if err != nil {
-		fmt.Printf("Onboarding cancelled: %v\n", err)
-		return
-	}
-
-	defaultInstanceURL := config.Login.InstanceUrl
-	if strings.TrimSpace(defaultInstanceURL) == "" {
-		defaultInstanceURL = defaultBoundaryURL
-	}
-
-	instanceURL, err := promptText(
-		"Boundary controller URL",
-		defaultInstanceURL,
-		requiredValue,
-		0,
-	)
-	if err != nil {
-		fmt.Printf("Onboarding cancelled: %v\n", err)
-		return
-	}
-
-	configureSyncDefaults, err := chooseYesNo("Configure sync defaults too?")
-	if err != nil {
-		fmt.Printf("Onboarding cancelled: %v\n", err)
-		return
-	}
-
-	syncItems := config.Sync.Files.Items
-
-	if configureSyncDefaults {
-		syncItems, err = promptSyncFileItems(syncItems)
-		if err != nil {
-			fmt.Printf("Onboarding cancelled: %v\n", err)
-			return
+	Use: "onboarding", Short: "Check SSH and sync tools and sign in with Clerk",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if _, err := exec.LookPath("ssh"); err != nil {
+			return fmt.Errorf("OpenSSH is required: %w", err)
 		}
-	}
-
-	configureContextDefaults, err := chooseYesNo("Configure context defaults too?")
-	if err != nil {
-		fmt.Printf("Onboarding cancelled: %v\n", err)
-		return
-	}
-
-	contextOrgID := strings.TrimSpace(config.Context.OrgID)
-	contextSiteID := strings.TrimSpace(config.Context.SiteID)
-	contextServerID := strings.TrimSpace(config.Context.ServerID)
-	contextNonInteractive := config.Behavior.NonInteractive
-
-	if configureContextDefaults {
-		contextOrgID, err = promptText("Default organization ID (optional)", contextOrgID, optionalValue, 0)
-		if err != nil {
-			fmt.Printf("Onboarding cancelled: %v\n", err)
-			return
+		if _, err := exec.LookPath("rsync"); err != nil {
+			fmt.Println("Install rsync before using file synchronization.")
 		}
-
-		contextSiteID, err = promptText("Default site ID (optional)", contextSiteID, optionalValue, 0)
-		if err != nil {
-			fmt.Printf("Onboarding cancelled: %v\n", err)
-			return
+		if err := authLoginCmd.RunE(cmd, nil); err != nil {
+			return err
 		}
-
-		contextServerID, err = promptText("Default server ID (optional)", contextServerID, optionalValue, 0)
+		path, err := resolveOnboardingConfigPath()
 		if err != nil {
-			fmt.Printf("Onboarding cancelled: %v\n", err)
-			return
+			return err
 		}
-
-		contextNonInteractive, err = chooseYesNo("Force non-interactive mode by default?")
-		if err != nil {
-			fmt.Printf("Onboarding cancelled: %v\n", err)
-			return
+		if _, err := os.Stat(path); err == nil {
+			if err := writeOnboardingConfig(path); err != nil {
+				return err
+			}
 		}
-	}
-
-	viper.Set("login.username", username)
-	viper.Set("login.password", password)
-	viper.Set("login.scope", scope)
-	viper.Set("login.auth_method", authMethod)
-	viper.Set("login.instance_url", instanceURL)
-	viper.Set("sync.files.items", toMapSlice(syncItems))
-	viper.Set("context.org_id", contextOrgID)
-	viper.Set("context.site_id", contextSiteID)
-	viper.Set("context.server_id", contextServerID)
-	viper.Set("behavior.non_interactive", contextNonInteractive)
-
-	if err := writeOnboardingConfig(configPath); err != nil {
-		panic(err)
-	}
-
-	if err := viper.Unmarshal(&config); err != nil {
-		panic(fmt.Errorf("Unable to decode Config: %s \n", err))
-	}
-
-	fmt.Println()
-	fmt.Printf("Saved configuration to %s\n", configPath)
-	fmt.Println("Next steps:")
-	fmt.Println("- Run `intercube ssh` to connect to a host")
-	fmt.Println("- Run `intercube auth login` to sign in for API calls")
-	fmt.Println("- Run `intercube auth status` to inspect local API session state")
-	if !boundaryInstalled {
-		fmt.Println("- Install Boundary CLI first: https://developer.hashicorp.com/boundary/downloads")
-	}
-	if !rsyncInstalled {
-		fmt.Println("- Install rsync to enable `intercube sync --files`")
-	}
-}
-
-func ensureLoginConfiguration() error {
-	configPath, err := resolveOnboardingConfigPath()
-	if err != nil {
-		return err
-	}
-
-	configFileExists := true
-	if _, err := os.Stat(configPath); os.IsNotExist(err) {
-		configFileExists = false
-	} else if err != nil {
-		return err
-	}
-
-	missingFields := make([]string, 0, 4)
-	if strings.TrimSpace(config.Login.Username) == "" {
-		missingFields = append(missingFields, "login.username")
-	}
-	if strings.TrimSpace(config.Login.Password) == "" {
-		missingFields = append(missingFields, "login.password")
-	}
-	if strings.TrimSpace(config.Login.Scope) == "" {
-		missingFields = append(missingFields, "login.scope")
-	}
-	if strings.TrimSpace(config.Login.AuthMethod) == "" {
-		missingFields = append(missingFields, "login.auth_method")
-	}
-
-	if configFileExists && len(missingFields) == 0 {
 		return nil
-	}
-
-	fmt.Println("Login configuration is missing. Let's set it up.")
-	if !configFileExists {
-		fmt.Printf("Config file not found, creating %s\n", configPath)
-	} else {
-		fmt.Printf("Missing required values: %s\n", strings.Join(missingFields, ", "))
-	}
-	fmt.Println()
-
-	username, err := promptText(
-		"Boundary username",
-		config.Login.Username,
-		requiredValue,
-		0,
-	)
-	if err != nil {
-		return err
-	}
-
-	passwordLabel := "Boundary password"
-	passwordValidator := requiredValue
-	if strings.TrimSpace(config.Login.Password) != "" {
-		passwordLabel = "Boundary password (leave blank to keep current)"
-		passwordValidator = optionalValue
-	}
-
-	password, err := promptText(
-		passwordLabel,
-		"",
-		passwordValidator,
-		'*',
-	)
-	if err != nil {
-		return err
-	}
-	if strings.TrimSpace(password) == "" {
-		password = config.Login.Password
-	}
-
-	scope, err := promptText(
-		"Boundary scope",
-		config.Login.Scope,
-		requiredValue,
-		0,
-	)
-	if err != nil {
-		return err
-	}
-
-	authMethod, err := promptText(
-		"Boundary auth method ID",
-		config.Login.AuthMethod,
-		requiredValue,
-		0,
-	)
-	if err != nil {
-		return err
-	}
-
-	defaultInstanceURL := config.Login.InstanceUrl
-	if strings.TrimSpace(defaultInstanceURL) == "" {
-		defaultInstanceURL = defaultBoundaryURL
-	}
-
-	instanceURL, err := promptText(
-		"Boundary controller URL",
-		defaultInstanceURL,
-		requiredValue,
-		0,
-	)
-	if err != nil {
-		return err
-	}
-
-	viper.Set("login.username", username)
-	viper.Set("login.password", password)
-	viper.Set("login.scope", scope)
-	viper.Set("login.auth_method", authMethod)
-	viper.Set("login.instance_url", instanceURL)
-
-	if err := saveConfigAndReload(configPath); err != nil {
-		return err
-	}
-
-	fmt.Printf("Saved login configuration to %s\n", configPath)
-	fmt.Println()
-
-	return nil
+	},
 }
 
 func ensureMappingsConfiguration() error {
@@ -469,10 +168,17 @@ func writeOnboardingConfig(path string) error {
 		return err
 	}
 
+	settings := viper.AllSettings()
+	delete(settings, "login") // Boundary passwords have no role in Clerk-backed access.
+	writer := viper.New()
+	writer.SetConfigFile(path)
+	if err := writer.MergeConfigMap(settings); err != nil {
+		return err
+	}
 	if _, err := os.Stat(path); err == nil {
-		return viper.WriteConfigAs(path)
+		return writer.WriteConfigAs(path)
 	} else if os.IsNotExist(err) {
-		return viper.SafeWriteConfigAs(path)
+		return writer.SafeWriteConfigAs(path)
 	} else {
 		return err
 	}

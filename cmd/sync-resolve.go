@@ -13,11 +13,13 @@ import (
 )
 
 type ResolvedSyncTarget struct {
-	SiteID      string
-	DisplayName string
-	Host        string
-	Username    string
-	Port        int
+	ServerAddress string
+	ServerName    string
+	SiteID        string
+	DisplayName   string
+	Host          string
+	Username      string
+	Port          int
 }
 
 type ResolvedSyncSource struct {
@@ -26,13 +28,20 @@ type ResolvedSyncSource struct {
 }
 
 func resolveSyncTarget(cmd *cobra.Command, inventoryClient *inventory.Client, query string, explicitSiteID string) (ResolvedSyncTarget, ResolvedSyncSource, error) {
-	sites, err := inventoryClient.ListSites(cmd.Context())
+	access, err := inventoryClient.SSHAccess(cmd.Context())
 	if err != nil {
-		if shouldPromptForOrganizationError(err) {
-			return ResolvedSyncTarget{}, ResolvedSyncSource{}, fmt.Errorf("organization context is required. Run `intercube auth org` (or pass --org-id)")
-		}
-
 		return ResolvedSyncTarget{}, ResolvedSyncSource{}, err
+	}
+	sites := make([]inventory.SiteServer, 0)
+	for _, target := range access.Targets {
+		if target.Root || target.SiteID == nil {
+			continue
+		}
+		domain := ""
+		if len(target.Domains) > 0 {
+			domain = target.Domains[0]
+		}
+		sites = append(sites, inventory.SiteServer{ID: strconv.Itoa(*target.SiteID), Username: target.LinuxUser, MainDomain: domain, ServerID: strconv.Itoa(target.ServerID), ServerName: target.ServerName})
 	}
 
 	if len(sites) == 0 {
@@ -55,12 +64,12 @@ func resolveSyncTarget(cmd *cobra.Command, inventoryClient *inventory.Client, qu
 		return ResolvedSyncTarget{}, source, err
 	}
 
-	target, err := resolveTargetAccessDetails(selectedSite)
-	if err != nil {
-		return ResolvedSyncTarget{}, source, err
+	for _, target := range access.Targets {
+		if target.SiteID != nil && strconv.Itoa(*target.SiteID) == selectedSite.ID && !target.Root {
+			return gatewayConnection(*access, target), source, nil
+		}
 	}
-
-	return target, source, nil
+	return ResolvedSyncTarget{}, source, fmt.Errorf("selected site is no longer available through the gateway")
 }
 
 func shouldPromptForOrganizationError(err error) bool {
@@ -282,58 +291,4 @@ func excludeSourceSite(sites []inventory.SiteServer, sourceSite *inventory.SiteS
 	})
 
 	return result
-}
-
-func resolveTargetAccessDetails(site *inventory.SiteServer) (ResolvedSyncTarget, error) {
-	if isNonInteractiveMode() {
-		host := strings.TrimSpace(site.MainDomain)
-		username := strings.TrimSpace(site.Username)
-		if host == "" || username == "" {
-			return ResolvedSyncTarget{}, fmt.Errorf("missing target access defaults; provide --site-id and ensure site has domain/user")
-		}
-
-		return ResolvedSyncTarget{
-			SiteID:      strings.TrimSpace(site.ID),
-			DisplayName: syncSiteDisplayName(*site),
-			Host:        host,
-			Username:    username,
-			Port:        22,
-		}, nil
-	}
-
-	if err := ensureInteractiveMode("target access prompts"); err != nil {
-		return ResolvedSyncTarget{}, err
-	}
-
-	hostDefault := strings.TrimSpace(site.MainDomain)
-	userDefault := strings.TrimSpace(site.Username)
-	portDefault := "22"
-
-	host, err := promptText("Target SSH host", hostDefault, requiredValue, 0)
-	if err != nil {
-		return ResolvedSyncTarget{}, err
-	}
-
-	username, err := promptText("Target SSH user", userDefault, requiredValue, 0)
-	if err != nil {
-		return ResolvedSyncTarget{}, err
-	}
-
-	portString, err := promptText("Target SSH port", portDefault, requiredValue, 0)
-	if err != nil {
-		return ResolvedSyncTarget{}, err
-	}
-
-	port, err := strconv.Atoi(strings.TrimSpace(portString))
-	if err != nil || port <= 0 {
-		return ResolvedSyncTarget{}, fmt.Errorf("invalid SSH port %q", portString)
-	}
-
-	return ResolvedSyncTarget{
-		SiteID:      strings.TrimSpace(site.ID),
-		DisplayName: syncSiteDisplayName(*site),
-		Host:        strings.TrimSpace(host),
-		Username:    strings.TrimSpace(username),
-		Port:        port,
-	}, nil
 }

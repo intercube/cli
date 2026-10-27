@@ -13,6 +13,15 @@ import (
 )
 
 func runFileSync(cmd *cobra.Command, target ResolvedSyncTarget, settings *SyncSettings, dryRun bool) error {
+	socket, err := gatewayControlPath(target)
+	if err != nil {
+		return err
+	}
+	if !dryRun {
+		if err := ensureGatewayMaster(cmd, target, socket); err != nil {
+			return err
+		}
+	}
 	items, err := ensureFileSyncItems(settings)
 	if err != nil {
 		return err
@@ -29,9 +38,9 @@ func runFileSync(cmd *cobra.Command, target ResolvedSyncTarget, settings *SyncSe
 			return fmt.Errorf("sync file target path is required")
 		}
 
-		destination := fmt.Sprintf("%s@%s:%s", target.Username, target.Host, targetPath)
+		destination := fmt.Sprintf("%s:%s", target.Host, targetPath)
 
-		args := []string{"-az", "-e", fmt.Sprintf("ssh -p %d", target.Port)}
+		args := []string{"-az", "-e", "ssh " + quoteCommandArgs(append(gatewaySSHArgs(target, socket), "-o", "BatchMode=yes"))}
 		if dryRun {
 			args = append(args, "--dry-run")
 		}
@@ -151,4 +160,12 @@ func splitCSV(input string) []string {
 	}
 
 	return result
+}
+
+func quoteCommandArgs(args []string) string {
+	parts := make([]string, len(args))
+	for i, arg := range args {
+		parts[i] = shellQuote(arg)
+	}
+	return strings.Join(parts, " ")
 }

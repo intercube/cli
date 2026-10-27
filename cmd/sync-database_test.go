@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/intercube/cli/util"
@@ -100,18 +100,11 @@ func TestConfiguredDatabaseSSHTargetWithoutHostUsesSelectedSyncTarget(t *testing
 	}
 }
 
-func TestBuildDatabaseSSHArgsUsesClusterOverride(t *testing.T) {
-	target := syncSSHTarget{
-		Host:     "sql.example.com",
-		Username: "dbadmin",
-		Port:     2200,
-	}
-
-	got := buildDatabaseSSHArgs(target, "mysql --host=127.0.0.1 shop")
-	want := []string{"-p", "2200", "dbadmin@sql.example.com", "mysql --host=127.0.0.1 shop"}
-
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("unexpected ssh args: got %#v want %#v", got, want)
+func TestMySQLImportUsesLocalTunnelWithoutPasswordInArguments(t *testing.T) {
+	got := buildLocalMySQLImportArgs(mysqlSyncConfig{TargetDatabase: "shop", TargetUser: "site_db"}, 33071)
+	joined := strings.Join(got, " ")
+	if !strings.Contains(joined, "--protocol=TCP --host=127.0.0.1 --port=33071") || !strings.Contains(joined, "--user=site_db -- shop") || strings.Contains(joined, "MYSQL_PWD") {
+		t.Fatalf("unexpected tunnel import arguments: %#v", got)
 	}
 }
 
@@ -149,5 +142,12 @@ func TestIsSameDatabaseTargetUsesExplicitTargetMySQLHost(t *testing.T) {
 
 	if !isSameDatabaseTarget(config) {
 		t.Fatalf("expected explicit target MySQL host to drive same-target detection")
+	}
+}
+
+func TestSameDatabaseGuardUsesManagedServerInsteadOfGateway(t *testing.T) {
+	config := mysqlSyncConfig{SourceHost: "managed.example.com", SourcePort: 3306, SourceDatabase: "shop", TargetHost: "127.0.0.1", TargetPort: 3306, TargetDatabase: "shop", TargetServerName: "managed.example.com", DatabaseSSH: syncSSHTarget{Host: "access.example.com"}}
+	if !isSameDatabaseTarget(config) {
+		t.Fatal("the gateway must not hide an identical source and destination database")
 	}
 }
