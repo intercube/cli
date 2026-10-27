@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"strconv"
@@ -11,18 +12,20 @@ import (
 )
 
 type mysqlSyncConfig struct {
-	SourceDatabase    string
-	SourceUser        string
-	SourceHost        string
-	SourcePort        int
-	SourcePasswordEnv string
-	TargetDatabase    string
-	TargetUser        string
-	TargetHost        string
-	TargetPort        int
-	TargetPasswordEnv string
-	DatabaseSSH       syncSSHTarget
-	DumpFlags         []string
+	TargetServerAddress string
+	TargetServerName    string
+	SourceDatabase      string
+	SourceUser          string
+	SourceHost          string
+	SourcePort          int
+	SourcePasswordEnv   string
+	TargetDatabase      string
+	TargetUser          string
+	TargetHost          string
+	TargetPort          int
+	TargetPasswordEnv   string
+	DatabaseSSH         syncSSHTarget
+	DumpFlags           []string
 }
 
 type syncSSHTarget struct {
@@ -37,6 +40,9 @@ func runDatabaseSync(cmd *cobra.Command, target ResolvedSyncTarget, settings *Sy
 	}
 
 	if err := ensureCommandAvailable("mysqldump"); err != nil {
+		return err
+	}
+	if err := ensureCommandAvailable("mysql"); err != nil {
 		return err
 	}
 	if err := ensureCommandAvailable("ssh"); err != nil {
@@ -79,25 +85,34 @@ func runDatabaseSync(cmd *cobra.Command, target ResolvedSyncTarget, settings *Sy
 	}
 
 	dumpArgs := buildMySQLDumpArgs(databaseConfig)
-	remoteCommand := buildRemoteMySQLImportCommand(databaseConfig, targetPassword)
-	sshArgs := buildDatabaseSSHArgs(databaseConfig.DatabaseSSH, remoteCommand)
-
-	fmt.Printf("Running: MYSQL_PWD=<hidden> mysqldump %s | ssh %s\n", strings.Join(dumpArgs, " "), strings.Join(sshArgs, " "))
-
-	if dryRun {
-		return nil
-	}
-
-	sshCommand := exec.CommandContext(cmd.Context(), "ssh", sshArgs...)
-	sshCommand.Stdout = os.Stdout
-	sshCommand.Stderr = os.Stderr
-
-	stdinPipe, err := sshCommand.StdinPipe()
+	connection := ResolvedSyncTarget{Host: databaseConfig.DatabaseSSH.Host, Username: databaseConfig.DatabaseSSH.Username, Port: databaseConfig.DatabaseSSH.Port}
+	socket, err := gatewayControlPath(connection)
 	if err != nil {
 		return err
 	}
-
-	if err := sshCommand.Start(); err != nil {
+	if !dryRun {
+		if err := ensureGatewayMaster(cmd, connection, socket); err != nil {
+			return err
+		}
+	}
+	fmt.Printf("Running: mysqldump %s | mysql through the authorized SSH tunnel (credentials hidden)\n", strings.Join(dumpArgs, " "))
+	if dryRun {
+		return nil
+	}
+	port, closeTunnel, err := openDatabaseTunnel(cmd, connection, socket, databaseConfig.TargetHost, databaseConfig.TargetPort)
+	if err != nil {
+		return err
+	}
+	defer closeTunnel()
+	importCommand := exec.CommandContext(cmd.Context(), "mysql", buildLocalMySQLImportArgs(databaseConfig, port)...)
+	importCommand.Env = append(os.Environ(), "MYSQL_PWD="+targetPassword)
+	importCommand.Stdout = os.Stdout
+	importCommand.Stderr = os.Stderr
+	stdinPipe, err := importCommand.StdinPipe()
+	if err != nil {
+		return err
+	}
+	if err := importCommand.Start(); err != nil {
 		return err
 	}
 
@@ -108,14 +123,14 @@ func runDatabaseSync(cmd *cobra.Command, target ResolvedSyncTarget, settings *Sy
 
 	dumpErr := dumpCommand.Run()
 	_ = stdinPipe.Close()
-	sshErr := sshCommand.Wait()
+	importErr := importCommand.Wait()
 
 	if dumpErr != nil {
 		return dumpErr
 	}
 
-	if sshErr != nil {
-		return sshErr
+	if importErr != nil {
+		return importErr
 	}
 
 	return nil
@@ -202,49 +217,18 @@ func promptMySQLSyncConfig(target ResolvedSyncTarget, settings *SyncSettings) (m
 		TargetPort:        targetPort,
 		TargetPasswordEnv: strings.TrimSpace(targetPasswordEnv),
 		DatabaseSSH:       databaseSSH,
-		DumpFlags:         strings.Fields(strings.TrimSpace(flagsRaw)),
+		TargetServerName:  target.ServerName, TargetServerAddress: target.ServerAddress,
+		DumpFlags: strings.Fields(strings.TrimSpace(flagsRaw)),
 	}, nil
 }
 
 func promptDatabaseSSHTarget(target ResolvedSyncTarget, settings *SyncSettings) (syncSSHTarget, error) {
-	defaultTarget := defaultDatabaseSSHTarget(target)
-	configuredTarget, hasConfiguredTarget := configuredDatabaseSSHTarget(target, settings)
-
-	hostDefault := ""
-	if hasConfiguredTarget {
-		hostDefault = configuredTarget.Host
+	configured, hasOverride := configuredDatabaseSSHTarget(target, settings)
+	expected := defaultDatabaseSSHTarget(target)
+	if hasOverride && configured != expected {
+		return syncSSHTarget{}, fmt.Errorf("database SSH overrides must match the authorized gateway target; select the appropriate site instead")
 	}
-
-	host, err := promptText("Database SSH host override (blank = selected target)", hostDefault, optionalValue, 0)
-	if err != nil {
-		return syncSSHTarget{}, err
-	}
-	if strings.TrimSpace(host) == "" {
-		return defaultTarget, nil
-	}
-
-	usernameDefault := defaultTarget.Username
-	portDefault := defaultTarget.Port
-	if hasConfiguredTarget {
-		usernameDefault = configuredTarget.Username
-		portDefault = configuredTarget.Port
-	}
-
-	username, err := promptText("Database SSH user", usernameDefault, requiredValue, 0)
-	if err != nil {
-		return syncSSHTarget{}, err
-	}
-
-	port, err := promptPort("Database SSH port", strconv.Itoa(portDefault))
-	if err != nil {
-		return syncSSHTarget{}, err
-	}
-
-	return syncSSHTarget{
-		Host:     strings.TrimSpace(host),
-		Username: strings.TrimSpace(username),
-		Port:     port,
-	}, nil
+	return expected, nil
 }
 
 func configuredDatabaseSSHTarget(target ResolvedSyncTarget, settings *SyncSettings) (syncSSHTarget, bool) {
@@ -310,19 +294,38 @@ func buildMySQLDumpArgs(config mysqlSyncConfig) []string {
 	return args
 }
 
-func buildRemoteMySQLImportCommand(config mysqlSyncConfig, targetPassword string) string {
-	return fmt.Sprintf(
-		"MYSQL_PWD=%s mysql --host=%s --port=%d --user=%s %s",
-		shellQuote(targetPassword),
-		shellQuote(config.TargetHost),
-		config.TargetPort,
-		shellQuote(config.TargetUser),
-		shellQuote(config.TargetDatabase),
-	)
+// Target credentials stay in the local mysql environment, outside SSH exec requests and shell recordings.
+func buildLocalMySQLImportArgs(config mysqlSyncConfig, port int) []string {
+	return []string{"--protocol=TCP", "--host=127.0.0.1", "--port=" + strconv.Itoa(port), "--user=" + config.TargetUser, "--", config.TargetDatabase}
 }
 
-func buildDatabaseSSHArgs(target syncSSHTarget, remoteCommand string) []string {
-	return []string{"-p", strconv.Itoa(target.Port), fmt.Sprintf("%s@%s", target.Username, target.Host), remoteCommand}
+func openDatabaseTunnel(cmd *cobra.Command, target ResolvedSyncTarget, socket, host string, port int) (int, func(), error) {
+	if host == "" || strings.ContainsAny(host, " \t\r\n[]") || port < 1 || port > 65535 {
+		return 0, nil, fmt.Errorf("invalid target database host or port")
+	}
+	destination := host
+	if strings.Contains(host, ":") {
+		destination = "[" + host + "]"
+	}
+	for attempt := 0; attempt < 3; attempt++ {
+		listener, err := net.Listen("tcp", "127.0.0.1:0")
+		if err != nil {
+			return 0, nil, err
+		}
+		localPort := listener.Addr().(*net.TCPAddr).Port
+		_ = listener.Close()
+		forward := fmt.Sprintf("127.0.0.1:%d:%s:%d", localPort, destination, port)
+		args := []string{"-S", socket, "-O", "forward", "-L", forward, "-p", strconv.Itoa(target.Port), "-l", target.Username, "--", target.Host}
+		if err := exec.CommandContext(cmd.Context(), "ssh", args...).Run(); err != nil {
+			continue
+		}
+		cleanup := func() {
+			args[3] = "cancel"
+			_ = exec.Command("ssh", args...).Run()
+		}
+		return localPort, cleanup, nil
+	}
+	return 0, nil, fmt.Errorf("unable to open the MySQL tunnel; reconnect and try again")
 }
 
 func shellQuote(value string) string {
@@ -331,7 +334,11 @@ func shellQuote(value string) string {
 }
 
 func isSameDatabaseTarget(config mysqlSyncConfig) bool {
-	if !isSameDatabaseHost(config.SourceHost, config.TargetHost, config.DatabaseSSH.Host) {
+	serverName := config.TargetServerName
+	if serverName == "" {
+		serverName = config.DatabaseSSH.Host
+	}
+	if !isSameDatabaseHost(config.SourceHost, config.TargetHost, serverName) && !isSameDatabaseHost(config.SourceHost, config.TargetHost, config.TargetServerAddress) {
 		return false
 	}
 

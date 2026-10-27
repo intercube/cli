@@ -1,359 +1,144 @@
-/*
-Copyright © 2023 Intercube <opensource@intercube.io>
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-	http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
 package cmd
 
 import (
-	"context"
 	"fmt"
-	"github.com/hashicorp/boundary/api"
-	"github.com/hashicorp/boundary/api/authmethods"
-	"github.com/hashicorp/boundary/api/hostcatalogs"
-	"github.com/hashicorp/boundary/api/hosts"
-	"github.com/hashicorp/boundary/api/scopes"
-	"github.com/intercube/cli/util/inventory"
-	"github.com/manifoldco/promptui"
-	"github.com/spf13/cobra"
 	"os"
 	"os/exec"
 	"sort"
+	"strconv"
 	"strings"
+
+	"github.com/intercube/cli/util/inventory"
+	"github.com/manifoldco/promptui"
+	"github.com/spf13/cobra"
 )
 
-var sshUsername = "root"
+var sshUsername string
 var sshLoadSites bool
+var sshRoot bool
+var sshForward []string
+var sshTunnel bool
+var sshConnectOnly bool
 
 var sshCmd = &cobra.Command{
-	Use:   "ssh [host-filter]",
-	Short: "Connect to a host over Boundary SSH",
-	Args:  cobra.MaximumNArgs(1),
-	Run: func(cmd *cobra.Command, args []string) {
-		runBoundarySSH(cmd, args, false)
-	},
+	Use: "ssh [site-or-server-filter]", Short: "Connect through Warpgate using Clerk sign-in", Args: cobra.MaximumNArgs(1), RunE: runGatewaySSH,
 }
-
-// loginCmd is deprecated; use sshCmd.
 var loginCmd = &cobra.Command{
-	Use:        "login [host-filter]",
-	Short:      "Deprecated: use `intercube ssh`",
-	Args:       cobra.MaximumNArgs(1),
-	Deprecated: "use `intercube ssh` instead",
-	Run: func(cmd *cobra.Command, args []string) {
-		runBoundarySSH(cmd, args, true)
-	},
+	Use: "login [site-or-server-filter]", Short: "Connect through Warpgate", Deprecated: "use `intercube ssh` instead", Args: cobra.MaximumNArgs(1), RunE: runGatewaySSH,
 }
 
-func runBoundarySSH(cmd *cobra.Command, args []string, fromDeprecatedLogin bool) {
-	if fromDeprecatedLogin {
-		fmt.Println("Warning: `intercube login` is deprecated. Use `intercube ssh` instead.")
-	}
-
-	if err := ensureLoginConfiguration(); err != nil {
-		fmt.Printf("Unable to continue SSH session: %v\n", err)
-		return
-	}
-
-	boundaryUrl := config.Login.InstanceUrl
-	if boundaryUrl == "" {
-		boundaryUrl = "https://controller.boundary.intercube.cloud"
-	}
-
-	boundaryPath, err := exec.LookPath("boundary")
+func runGatewaySSH(cmd *cobra.Command, args []string) error {
+	client, _, err := newInventoryClient(cmd, "")
 	if err != nil {
-		panic("Boundary is not installed. Download and install Boundary before using `intercube ssh` (https://learn.hashicorp.com/tutorials/boundary/getting-started-install)")
+		return err
 	}
-
-	type inventoryFetchResult struct {
-		sites []inventory.SiteServer
-		err   error
-	}
-
-	var inventoryResults <-chan inventoryFetchResult
-	if sshLoadSites {
-		resultChannel := make(chan inventoryFetchResult, 1)
-		inventoryResults = resultChannel
-
-		go func() {
-			sites, fetchErr := fetchInventorySites(cmd)
-			resultChannel <- inventoryFetchResult{sites: sites, err: fetchErr}
-		}()
-	}
-
-	apiConfig, _ := api.DefaultConfig()
-	apiConfig.Addr = boundaryUrl
-
-	client, err := api.NewClient(apiConfig)
+	access, err := client.SSHAccess(cmd.Context())
 	if err != nil {
-		panic(err)
+		return err
 	}
-
-	credentials := map[string]interface{}{
-		"login_name": config.Login.Username,
-		"password":   config.Login.Password,
+	query := ""
+	if len(args) > 0 {
+		query = args[0]
 	}
-
-	am := authmethods.NewClient(client)
-
-	at, err := am.Authenticate(context.Background(), config.Login.AuthMethod, "login", credentials)
-	if err != nil {
-		panic(err)
+	targets := filterGatewayTargets(access.Targets, query, sshRoot || sshUsername == "root", sshUsername)
+	if len(targets) == 0 {
+		return fmt.Errorf("no authorized SSH targets match %q", query)
 	}
-
-	var token string
-	if x, found := at.Attributes["token"]; found {
-		token, _ = x.(string)
-	}
-
-	err = os.Setenv("BOUNDARY_TOKEN", token)
-	if err != nil {
-		panic(err)
-	}
-	client.SetToken(token)
-
-	scopes := scopes.NewClient(client)
-	ctx := context.Background()
-	scopeResults, err := scopes.List(ctx, config.Login.Scope)
-	if err != nil {
-		panic(err)
-	}
-
-	catalogsClient := hostcatalogs.NewClient(client)
-
-	var catalogs []*hostcatalogs.HostCatalog
-
-	for _, item := range scopeResults.Items {
-		catalogsResult, listErr := catalogsClient.List(ctx, item.Id)
-		if listErr != nil {
-			panic(listErr)
+	index := 0
+	if len(targets) > 1 {
+		if err := ensureInteractiveMode("SSH target selection"); err != nil {
+			return err
 		}
-
-		catalogs = append(catalogs, catalogsResult.Items...)
-	}
-
-	var hostsList []*hosts.Host
-
-	hostClient := hosts.NewClient(client)
-	for _, hostCatalog := range catalogs {
-		hostsResult, listErr := hostClient.List(ctx, hostCatalog.Id)
-		if listErr != nil {
-			panic(listErr)
-		}
-
-		hostsList = append(hostsList, hostsResult.Items...)
-	}
-	hostsList = dedupeBoundaryHosts(hostsList)
-
-	if len(hostsList) == 0 {
-		fmt.Println("No Boundary hosts available")
-		return
-	}
-
-	sort.Slice(hostsList[:], func(i, j int) bool {
-		return hostsList[i].Name < hostsList[j].Name
-	})
-
-	var sites []inventory.SiteServer
-	if inventoryResults != nil {
-		inventoryResult := <-inventoryResults
-		sites = inventoryResult.sites
-		inventoryErr := inventoryResult.err
-		if inventoryErr != nil {
-			fmt.Println("Inventory metadata unavailable; searching Boundary host names only.")
-			if Verbose {
-				fmt.Printf("Inventory lookup error: %v\n", inventoryErr)
-			}
+		prompt := promptui.Select{Label: "Select site or server", Items: targets, Size: selectSize(len(targets)), HideHelp: true,
+			Templates: &promptui.SelectTemplates{Label: "{{ . }}", Active: "> {{ .Name | cyan }}: {{ .LinuxUser }} on {{ .ServerName }} {{ .Domains }}", Inactive: "  {{ .Name }}: {{ .LinuxUser }} on {{ .ServerName }} {{ .Domains }}", Selected: "{{ .Name }}"},
+			Searcher:  func(input string, index int) bool { return gatewayTargetMatches(targets[index], input) }, StartInSearchMode: true}
+		index, _, err = prompt.Run()
+		if err != nil {
+			return err
 		}
 	}
-
-	targetOptions := buildSSHTargetOptions(hostsList, sites)
-	filteredTargets := targetOptions
-	if len(args) == 1 {
-		filteredTargets = filterAndRankSSHTargets(targetOptions, args[0])
-
-		switch len(filteredTargets) {
-		case 0:
-			fmt.Printf("No hosts matched %q\n", args[0])
-			return
-		case 1:
-			fmt.Printf("Connecting to host: %s\n", filteredTargets[0].HostName)
-			connectToHost(boundaryPath, boundaryUrl, filteredTargets[0].Host)
-			return
-		}
-	}
-
-	fmt.Printf("Total of %v hosts available\n", len(hostsList))
-	if len(args) == 1 {
-		fmt.Printf("%v hosts match %q\n\n", len(filteredTargets), args[0])
-	} else {
-		fmt.Println()
-	}
-
-	detailsTemplate := `
-{{ "Server:" | faint }}	{{ .ServerName }}
-{{ "IP:" | faint }}	{{ .PrimaryIP }}
-{{ "Host ID:" | faint }}	{{ .HostID }}
-`
-	if sshLoadSites {
-		detailsTemplate += `{{ "Sites:" | faint }}	{{ .SitePreview }}
-`
-	}
-
-	templates := &promptui.SelectTemplates{
-		Label:    "{{ . }}",
-		Active:   "> {{ .Title | cyan }}{{ if .Meta }} {{ .Meta | faint }}{{ end }}",
-		Inactive: "  {{ .Title }}{{ if .Meta }} {{ .Meta | faint }}{{ end }}",
-		Selected: "Selected host: {{ .HostName | cyan }}",
-		Details:  detailsTemplate,
-	}
-
-	searcher := func(input string, index int) bool {
-		target := filteredTargets[index]
-		return sshTargetMatchesInput(target, input)
-	}
-
-	promptLabel := "Search server to connect"
-	if sshLoadSites {
-		promptLabel = "Search by site or server to connect"
-	}
-
-	prompt := promptui.Select{
-		Label:     promptLabel,
-		Items:     filteredTargets,
-		Templates: templates,
-		Size:      selectSize(len(filteredTargets)),
-		Searcher:  searcher,
-		HideHelp:  true,
-	}
-
-	i, _, err := prompt.Run()
-
+	target := targets[index]
+	connection := gatewayConnection(*access, target)
+	socket, err := gatewayControlPath(connection)
 	if err != nil {
-		fmt.Printf("Prompt failed %v\n", err)
-		return
+		return err
 	}
-
-	fmt.Printf("Connecting to host: %s\n", filteredTargets[i].HostName)
-	connectToHost(boundaryPath, boundaryUrl, filteredTargets[i].Host)
-}
-
-func connectToHost(boundaryPath, boundaryURL string, host *hosts.Host) {
-	command := exec.Command(
-		boundaryPath,
-		"connect",
-		"ssh",
-		"-target-name=ssh",
-		"-target-scope-id="+host.Scope.Id,
-		"-addr="+boundaryURL,
-		"-username="+sshUsername,
-		"-host-id="+host.Id,
-		"-token=env://BOUNDARY_TOKEN",
-	)
+	if sshConnectOnly {
+		return ensureGatewayMaster(cmd, connection, socket)
+	}
+	arguments := gatewaySSHArgs(connection, socket)
+	if isNonInteractiveMode() {
+		arguments = append(arguments, "-o", "BatchMode=yes")
+	}
+	for _, forward := range sshForward {
+		arguments = append(arguments, "-L", forward)
+	}
+	if sshTunnel {
+		arguments = append(arguments, "-N")
+	}
+	arguments = append(arguments, "--", connection.Host)
+	command := exec.CommandContext(cmd.Context(), "ssh", arguments...)
 	command.Stdin = os.Stdin
 	command.Stdout = os.Stdout
 	command.Stderr = os.Stderr
-	_ = command.Run()
+	return command.Run()
 }
 
-func dedupeBoundaryHosts(hostsList []*hosts.Host) []*hosts.Host {
-	if len(hostsList) < 2 {
-		return hostsList
+func gatewayTargetMatches(target inventory.SSHTarget, query string) bool {
+	value := strings.ToLower(strings.TrimSpace(query))
+	fields := []string{target.Name, target.ServerName, target.Address, target.LinuxUser, target.OrganizationID, strconv.Itoa(target.ServerID)}
+	fields = append(fields, target.Domains...)
+	if target.SiteID != nil {
+		fields = append(fields, strconv.Itoa(*target.SiteID))
 	}
-
-	result := make([]*hosts.Host, 0, len(hostsList))
-	seen := make(map[string]struct{}, len(hostsList))
-	for _, host := range hostsList {
-		key := strings.TrimSpace(host.Id)
-		if key == "" {
-			key = strings.ToLower(strings.TrimSpace(host.Name))
+	for _, field := range fields {
+		if strings.Contains(strings.ToLower(field), value) {
+			return true
 		}
-		if key == "" {
-			key = fmt.Sprintf("fallback-%d", len(result))
-		}
+	}
+	return false
+}
 
-		if _, exists := seen[key]; exists {
+func filterGatewayTargets(targets []inventory.SSHTarget, query string, root bool, username string) []inventory.SSHTarget {
+	result := make([]inventory.SSHTarget, 0)
+	for _, target := range targets {
+		if target.Root != root || (username != "" && username != target.LinuxUser) {
 			continue
 		}
-
-		seen[key] = struct{}{}
-		result = append(result, host)
+		if gatewayTargetMatches(target, query) {
+			result = append(result, target)
+		}
 	}
-
+	sort.Slice(result, func(i, j int) bool { return result[i].Name < result[j].Name })
 	return result
 }
 
+// Suppress promptui's terminal bell without changing prompt output.
 type bellSkipper struct{}
 
-// This solves the issue where manifoldco/promptui sends out an annoying bell sound whenever you hit a key (on MacOS)
-// Write implements an io.WriterCloser over os.Stderr, but it skips the terminal bell character.
 func (bs *bellSkipper) Write(b []byte) (int, error) {
-	const charBell = 7 // c.f. readline.CharBell
-
 	filtered := make([]byte, 0, len(b))
 	for _, value := range b {
-		if value == charBell {
-			continue
+		if value != 7 {
+			filtered = append(filtered, value)
 		}
-		filtered = append(filtered, value)
 	}
-
-	if len(filtered) == 0 {
-		return len(b), nil
+	_, err := os.Stderr.Write(filtered)
+	if err != nil {
+		return 0, err
 	}
-
-	written, err := os.Stderr.Write(filtered)
-	if written == len(filtered) {
-		return len(b), err
-	}
-
-	return written, err
+	return len(b), nil
 }
-
-// Close implements an io.WriterCloser over os.Stderr.
-func (bs *bellSkipper) Close() error {
-	return nil
-}
+func (bs *bellSkipper) Close() error { return nil }
 
 func init() {
-	rootCmd.AddCommand(sshCmd)
-	rootCmd.AddCommand(loginCmd)
-
-	sshCmd.PersistentFlags().StringVar(
-		&sshUsername,
-		"ssh_username",
-		"root",
-		"Username used to connect with the server",
-	)
-	sshCmd.PersistentFlags().BoolVarP(
-		&sshLoadSites,
-		"sites",
-		"s",
-		false,
-		"Load site metadata from Inventory API so you can search by site name",
-	)
-
-	loginCmd.PersistentFlags().StringVar(
-		&sshUsername,
-		"ssh_username",
-		"root",
-		"Username used to connect with the server",
-	)
-	loginCmd.PersistentFlags().BoolVarP(
-		&sshLoadSites,
-		"sites",
-		"s",
-		false,
-		"Load site metadata from Inventory API so you can search by site name",
-	)
+	rootCmd.AddCommand(sshCmd, loginCmd)
+	for _, command := range []*cobra.Command{sshCmd, loginCmd} {
+		command.Flags().StringVar(&sshUsername, "ssh_username", "", "Select only an authorized Linux account; root requires explicit platform access")
+		command.Flags().BoolVarP(&sshLoadSites, "sites", "s", false, "Site metadata is always available")
+		command.Flags().BoolVar(&sshRoot, "root", false, "Select platform root targets (platform administrators only)")
+		command.Flags().StringArrayVarP(&sshForward, "forward", "L", nil, "Local SSH tunnel, e.g. 127.0.0.1:3307:127.0.0.1:3306")
+		command.Flags().BoolVar(&sshTunnel, "tunnel", false, "Keep only the tunnel open without a remote shell")
+		command.Flags().BoolVar(&sshConnectOnly, "connect-only", false, "Approve a reusable connection for subsequent non-interactive sync commands")
+	}
 }

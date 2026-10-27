@@ -36,25 +36,33 @@ Use the onboarding command to set up your CLI config interactively:
 intercube onboarding
 ```
 
-The wizard can help you:
-- configure login defaults (`username`, `password`, `scope`, `auth_method`, `instance_url`)
-- optionally configure file path mappings for `intercube sync`
-- verify local prerequisites such as Boundary CLI and `rsync`
-
-After onboarding, use:
+Onboarding verifies OpenSSH, checks for optional rsync support and signs in through
+Clerk. Existing Boundary login/password settings are removed when the user
+configuration is rewritten.
 
 ```bash
-intercube ssh
+intercube ssh shop.example.com           # fixed site user
+intercube ssh --root web.example.com     # explicit platform administrators only
+intercube ssh shop.example.com --connect-only
+intercube ssh shop.example.com -L 127.0.0.1:3307:127.0.0.1:3306 --tunnel
 ```
 
-If required settings are missing (or the config file does not exist), the CLI
-will prompt only when needed and save values automatically:
-- `intercube ssh` prompts for required login settings
-- `intercube sync` prompts for missing file path mappings
-- `intercube map --interactive` prompts to create mappings when none exist
-- `intercube map --create-origin-dir` / `intercube map -c` creates missing origin directories before mapping
+The target list covers all of your organization memberships. Customers always
+connect as the selected site's Linux user; `--ssh_username` only filters
+already-authorized accounts. Warpgate provides browser approval and server-side
+SSH credentials. Personal SSH keys and the Boundary binary are unnecessary.
+`--sites` remains accepted because site metadata is now always available.
+Reusable SSH and sync connections require OpenSSH with `ControlMaster` and
+`ControlPersist` multiplexing support.
 
-`intercube login` is kept as a deprecated alias and prints a warning to use `intercube ssh`.
+`intercube login` remains a deprecated alias for `intercube ssh`. Missing Clerk
+authentication is reported with instructions to run `intercube auth login`.
+Non-interactive SSH uses an existing approved control connection; establish one
+with `--connect-only` first. Missing file mappings still prompt in interactive
+sync, while `intercube map --interactive` manages local mappings.
+
+Temporary developers may keep using assigned site keys with direct SSH. Those
+connections bypass gateway recording and revocation.
 
 ### Set up a repository
 
@@ -125,12 +133,10 @@ Behavior:
 - argument auto-resolves against site ID/domain/server/user when possible
 - stores file path mappings in config (`sync.files.items`)
 - database connection details are requested interactively for each run (not persisted)
-- database sync uses the selected target server by default, with an optional
-  database SSH host override for clustered setups where files and MySQL live on
-  separate servers
+- database sync uses the selected site's authorized gateway connection; the
+  prompted MySQL host and port are reached from that site's server
 
-Single-server environments do not need extra sync configuration. For clustered
-targets, add the database SSH defaults to `.intercube.yaml`:
+File mappings can be saved in `.intercube.yaml`:
 
 ```yaml
 sync:
@@ -138,17 +144,12 @@ sync:
     items:
       - source: /var/www/site/
         target: /var/www/site/
-  database:
-    target_ssh:
-      host: production-sql.example.com
-      user: deploy
-      port: 22
 ```
 
-When `sync.database.target_ssh.host` is set, `intercube sync --database`
-pre-fills the database SSH prompt with that host. The `user` and `port` values
-are optional; when omitted, the selected target server's SSH user and port are
-used.
+Remove old `sync.database.target_ssh` overrides before using the gateway flow.
+For clustered databases, enter the database address reachable from the selected
+site's server in the MySQL host prompt. To use another server as the SSH endpoint,
+select an authorized site on that server.
 
 ### Context-aware defaults
 
@@ -191,3 +192,13 @@ Environment overrides:
 - `INTERCUBE_NON_INTERACTIVE`
 
 In non-interactive mode, commands fail instead of prompting when required values are missing.
+
+### Gateway transport for synchronization
+
+File and database synchronization use the selected site's Warpgate target and a
+shared OpenSSH control connection. Database imports use a local `mysql` client
+through an SSH tunnel; install both `mysql` and `mysqldump`. Passwords are read
+from the chosen environment variables and are excluded from command arguments
+and printed plans. Legacy arbitrary SSH host/user overrides are rejected; select
+the appropriate authorized site instead. Native SSH tunnels also support normal
+database clients and prepared statements.
