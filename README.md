@@ -52,6 +52,8 @@ connect as the selected site's Linux user; `--ssh_username` only filters
 already-authorized accounts. Warpgate provides browser approval and server-side
 SSH credentials. Personal SSH keys and the Boundary binary are unnecessary.
 `--sites` remains accepted because site metadata is now always available.
+Reusable SSH and sync connections require OpenSSH with `ControlMaster` and
+`ControlPersist` multiplexing support.
 
 `intercube login` remains a deprecated alias for `intercube ssh`. Missing Clerk
 authentication is reported with instructions to run `intercube auth login`.
@@ -131,12 +133,10 @@ Behavior:
 - argument auto-resolves against site ID/domain/server/user when possible
 - stores file path mappings in config (`sync.files.items`)
 - database connection details are requested interactively for each run (not persisted)
-- database sync uses the selected target server by default, with an optional
-  database SSH host override for clustered setups where files and MySQL live on
-  separate servers
+- database sync uses the selected site's authorized gateway connection; the
+  prompted MySQL host and port are reached from that site's server
 
-Single-server environments do not need extra sync configuration. For clustered
-targets, add the database SSH defaults to `.intercube.yaml`:
+File mappings can be saved in `.intercube.yaml`:
 
 ```yaml
 sync:
@@ -144,17 +144,12 @@ sync:
     items:
       - source: /var/www/site/
         target: /var/www/site/
-  database:
-    target_ssh:
-      host: production-sql.example.com
-      user: deploy
-      port: 22
 ```
 
-When `sync.database.target_ssh.host` is set, `intercube sync --database`
-pre-fills the database SSH prompt with that host. The `user` and `port` values
-are optional; when omitted, the selected target server's SSH user and port are
-used.
+Remove old `sync.database.target_ssh` overrides before using the gateway flow.
+For clustered databases, enter the database address reachable from the selected
+site's server in the MySQL host prompt. To use another server as the SSH endpoint,
+select an authorized site on that server.
 
 ### Context-aware defaults
 
